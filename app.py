@@ -4,25 +4,23 @@ import google.generativeai as genai
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="SudoDocs: Script Studio",
-    page_icon="📺",
+    page_icon="✍️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# --- FIXED CSS BLOCK ---
+# Clean, Dark Mode Aesthetic
 st.markdown("""
     <style>
-    .stApp { background-color: #0d1117; color: #c9d1d9; }
+    .stApp { background-color: #0e1117; color: #e6e6e6; }
     .stButton>button {
-        width: 100%; border-radius: 6px; height: 3em;
-        background-color: #238636; color: white; border: none; font-weight: 600;
+        background-color: #d93025; color: white; border-radius: 6px; height: 3em; font-weight: 600; border: none;
     }
-    .stButton>button:hover { background-color: #2ea043; }
-    .metric-card {
-        background-color: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 15px;
-    }
+    .stButton>button:hover { background-color: #b31412; }
+    .stTextInput>div>div>input { background-color: #161b22; color: white; border: 1px solid #30363d; }
+    .stTextArea>div>div>textarea { background-color: #161b22; color: white; border: 1px solid #30363d; font-family: sans-serif; }
     </style>
-    """, unsafe_allow_html=True)  # <--- FIXED PARAMETER HERE
+    """, unsafe_allow_html=True)
 
 # --- BACKEND LOGIC ---
 
@@ -30,9 +28,9 @@ def run_deep_research(topic, mode, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-flash')
     
-    # SIMPLIFIED & HUMANIZED PROMPTS
+    # KEYS MUST MATCH SIDEBAR EXACTLY
     prompts = {
-        "Cinema Logic (Realist-Industrial Critic)": f"""
+        "Movie/Series Review": f"""
         ACT AS: Senior Film Critic.
         TOPIC: {topic}
         RESEARCH TASKS:
@@ -40,43 +38,34 @@ def run_deep_research(topic, mode, api_key):
         2. THEMES: The deeper philosophical or social questions the story asks.
         3. PRODUCTION: Any notable behind-the-scenes conflict or budget constraints?
         4. RECEPTION: General audience sentiment vs. critical consensus.
-        OUTPUT: Concise research notes for a script.
+        OUTPUT: Concise research notes for an essay.
         """,
         
-        "Tech News Logic (Viral Tech Blog)": f"""
-        ACT AS: Senior Tech Journalist.
+        "Tech & Docs (SudoDocs)": f"""
+        ACT AS: Tech Educator & Journalist.
         TOPIC: {topic}
         RESEARCH TASKS:
         1. PAIN POINTS: Why do users struggle with this? (Root Cause).
         2. SOLUTION: The "Aha!" moment or fix.
         3. CONTEXT: Industry impact or "Docs-as-Code" relevance.
-        OUTPUT: Engagement hooks and technical context.
-        """,
-        
-        "Documentation Logic (SudoDocs-tv)": f"""
-        ACT AS: Developer Advocate.
-        TOPIC: {topic}
-        RESEARCH TASKS:
-        1. THE STRUGGLE: Common user errors.
-        2. THE FIX: Best practices and "Aha!" moments.
-        3. VISUALS: needed diagrams or code snippets.
-        OUTPUT: Educational context.
+        OUTPUT: Technical context for an article.
         """
     }
     
-    # Fallback to handle different mode names if sidebar changes
-    prompt_text = prompts.get(mode, prompts["Cinema Logic (Realist-Industrial Critic)"])
+    # Fallback to prevent KeyErrors
+    prompt_text = prompts.get(mode, prompts["Movie/Series Review"])
     
     try:
         response = model.generate_content(prompt_text)
         return response.text
     except Exception as e:
         return f"Research Error: {e}"
-        
-def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
+
+def generate_script_package(mode, title, research, notes, matrix_data, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-pro')
     
+    # KEYS MUST MATCH SIDEBAR EXACTLY
     system_instructions = {
         "Movie/Series Review": """
         ROLE: Sophisticated Film Critic (Tone: Critical, Insightful, Human).
@@ -104,8 +93,11 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
         """
     }
     
+    # Fallback to prevent KeyErrors
+    instruction_text = system_instructions.get(mode, system_instructions["Movie/Series Review"])
+    
     prompt = f"""
-    {system_instructions[mode]}
+    {instruction_text}
     
     INPUTS:
     - Topic: {title}
@@ -127,15 +119,14 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
         return response.text
     except Exception as e:
         return f"Generation Error: {e}"
-        
+
 # --- UI COMPONENTS ---
 
-def render_technical_matrix(mode):
-    st.subheader("🎛️ Analysis Matrix")
+def render_matrix(mode):
     data = {}
+    st.subheader("🎛️ Analysis Matrix")
     
-    # LOGIC 1: MOVIE / SERIES
-    if "Cinema" in mode or "Movie" in mode:
+    if mode == "Movie/Series Review":
         c1, c2 = st.columns(2)
         with c1:
             data['Thematic_Depth'] = st.select_slider("Thematic Depth", ["Superficial", "Standard", "Profound"], "Standard")
@@ -144,76 +135,68 @@ def render_technical_matrix(mode):
             data['Acting_Quality'] = st.select_slider("Performances", ["Wooden", "Serviceable", "Transformative"], "Serviceable")
             data['Verdict'] = st.selectbox("Final Verdict", ["Skip It", "Wait for Streaming", "Must Watch"])
             
-    # LOGIC 2: TECH & DOCS
-    else:
+    else: # Tech & Docs
         c1, c2 = st.columns(2)
         with c1:
             data['Complexity'] = st.select_slider("Topic Complexity", ["Beginner", "Intermediate", "Advanced"], "Intermediate")
             data['Urgency'] = st.select_slider("News Urgency", ["Evergreen Guide", "Trending Now", "Breaking News"], "Evergreen Guide")
         with c2:
-            data['Tone'] = st.selectbox("Video Tone", ["Tutorial (Step-by-Step)", "Opinion/Rant", "Deep Dive Explanation"])
+            data['Tone'] = st.selectbox("Article Tone", ["Tutorial (Step-by-Step)", "Opinion/Rant", "Deep Dive Explanation"])
             
     return str(data)
 
-# --- MAIN APP LAYOUT ---
+# --- MAIN LAYOUT ---
 
 with st.sidebar:
-    st.title("🛡️ SudoDocs: Script Studio")
+    st.title("🎬 SudoDocs Studio")
     api_key = st.text_input("Gemini API Key", type="password")
-    st.markdown("---")
+    st.divider()
     
-    # UPDATE: Ensure these names match the new function keys EXACTLY
+    # THIS LIST MUST MATCH THE KEYS IN 'prompts' AND 'system_instructions'
     active_mode = st.radio(
-        "Select Logic Module:",
-        [
-            "Cinema Logic (Realist-Industrial Critic)", 
-            "Tech News Logic (Viral Tech Blog)", 
-            "Documentation Logic (SudoDocs-tv)"
-        ]
+        "Select Mode:", 
+        ["Movie/Series Review", "Tech & Docs (SudoDocs)"]
     )
-    
-    st.info(f"Persona: **{active_mode.split('(')[0]}**")
 
-st.title("📺 SudoDocs: Script Studio")
+st.title(f"📝 {active_mode} Generator")
 
-col_left, col_right = st.columns([1, 1], gap="large")
+col1, col2 = st.columns([1, 1], gap="large")
 
-with col_left:
+with col1:
     st.markdown("### 1. Topic & Research")
-    topic_title = st.text_input("Video Topic", placeholder="e.g. Sphinx Auto-Doc Setup")
+    topic = st.text_input("Topic / Title")
     
-    if st.button("🔍 Run Engagement Research"):
-        if not api_key: st.error("Authentication Missing")
+    if st.button("🔍 Fetch Context"):
+        if not api_key: st.error("Need API Key")
         else:
-            with st.spinner("Analyzing Pain Points & Visuals..."):
-                st.session_state['research_data'] = run_deep_research(topic_title, active_mode, api_key)
+            with st.spinner("Researching..."):
+                st.session_state['res'] = run_deep_research(topic, active_mode, api_key)
     
-    if 'research_data' in st.session_state:
-        with st.expander("View Research Notes", expanded=True):
-            st.markdown(st.session_state['research_data'])
+    if 'res' in st.session_state:
+        st.info(st.session_state['res'])
 
-    matrix_summary = render_technical_matrix(active_mode)
+    matrix_data = render_matrix(active_mode)
 
-with col_right:
-    st.markdown("### 2. Script & Metadata")
-    brain_dump = st.text_area("Brain Dump / Specific Code to Mention", height=150)
+with col2:
+    st.markdown("### 2. Your Take")
+    notes = st.text_area("Brain Dump (Your raw thoughts/opinions):", height=200)
     
-    if st.button("🚀 Generate Video Package"):
-        if not api_key or not topic_title: st.error("Missing Inputs")
+    if st.button("🚀 Write Article"):
+        if not api_key or not topic: st.error("Missing Info")
         else:
-            with st.spinner("Writing Script & Visual Cues..."):
-                package = generate_viral_package(
+            with st.spinner("Writing..."):
+                script = generate_script_package(
                     active_mode, 
-                    topic_title, 
-                    st.session_state.get('research_data', ""), 
-                    brain_dump, 
-                    matrix_summary, 
+                    topic, 
+                    st.session_state.get('res', ''), 
+                    notes, 
+                    matrix_data, 
                     api_key
                 )
-                st.session_state['final_package'] = package
+                st.session_state['final'] = script
 
-if 'final_package' in st.session_state:
-    st.markdown("---")
-    st.subheader("📦 Final Upload Package")
-    st.text_area("Full Script & SEO Data", value=st.session_state['final_package'], height=800)
-    st.download_button("💾 Download Script", st.session_state['final_package'], file_name=f"{topic_title}_Script.txt")
+if 'final' in st.session_state:
+    st.divider()
+    st.subheader("📦 Final Content Package")
+    st.text_area("Copy-Paste Ready", value=st.session_state['final'], height=800)
+    st.download_button("💾 Download", st.session_state['final'], file_name=f"{topic}_Article.txt")
