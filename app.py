@@ -73,7 +73,7 @@ def run_deep_research(topic, mode, api_key):
     except Exception as e:
         return f"Research Error: {e}"
         
-def generate_script_package(mode, title, research, notes, matrix_data, api_key):
+def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-pro')
     
