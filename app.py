@@ -28,7 +28,7 @@ st.markdown("""
 
 def run_deep_research(topic, mode, api_key):
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     prompts = {
         "Cinema Logic (Beyond Cinemas)": f"""
@@ -67,7 +67,7 @@ def run_deep_research(topic, mode, api_key):
 
 def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    model = genai.GenerativeModel('gemini-2.5-pro')
     
     system_instructions = {
         "Cinema Logic (Beyond Cinemas)": """
@@ -177,7 +177,7 @@ def render_technical_matrix(mode):
 # --- MAIN APP LAYOUT ---
 
 with st.sidebar:
-    st.title("🛡️ SudoDocs Studio")
+    st.title("🛡️ SudoDocs Script Studio")
     api_key = st.text_input("Gemini API Key", type="password")
     st.markdown("---")
     active_mode = st.radio(
@@ -186,7 +186,7 @@ with st.sidebar:
     )
     st.info(f"Persona: **{active_mode.split('(')[0]}**")
 
-st.title("📺 SudoDocs-tv: Content Engine")
+st.title("📺 SudoDocs: Script Studio")
 
 col_left, col_right = st.columns([1, 1], gap="large")
 
