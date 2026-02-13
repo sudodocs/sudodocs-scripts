@@ -73,42 +73,39 @@ def run_deep_research(topic, mode, api_key):
     except Exception as e:
         return f"Research Error: {e}"
         
-def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
+def generate_script_package(mode, title, research, notes, matrix_data, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-pro')
     
     system_instructions = {
-        "Cinema Logic (Realist-Industrial Critic)": """
+        "Movie/Series Review": """
         ROLE: Sophisticated Film Critic (Tone: Critical, Insightful, Human).
         
         NARRATIVE STRUCTURE (THE 5 ACTS):
-        1. THE ANCHOR: Start with a broad observation about life, society, or the genre. (NOT a corporate comparison).
+        1. THE ANCHOR: Start with a broad observation about life, society, or the genre.
         2. THE SETUP: Introduce the film/series as a case study of that Anchor.
         3. THE 'WHY': Analyze the characters' motivations. Are they 'Second Nature' (believable) or 'Plastic' (fake)?
         4. THE CRAFT: Critique the Direction and Writing. Use words like "Finesse," "Resilience," "Dull," "Junk."
         5. THE VERDICT: A definitive "Watch" or "Skip" conclusion.
         
-        RULE: Focus on Human Emotion and Filmmaking Craft. Do NOT use corporate metaphors unless explicitly asked.
+        RULE: Write a cohesive ESSAY/ARTICLE. Focus on flow and argument. Do NOT use [Visual Cues], camera directions, or scene numbers.
         """,
         
-        "Tech News Logic (Viral Tech Blog)": """
-        ROLE: Tech Reporter (Tone: Helpful, Authoritative, 'No-Fluff').
-        STRUCTURE: Hook -> Diagnosis (Root Cause) -> Fix/Lesson -> Takeaway.
-        RULE: Use Analogies (Lego, Traffic) to explain complex concepts.
-        """,
+        "Tech & Docs (SudoDocs)": """
+        ROLE: Senior DevRel & Tech Reporter (Tone: Helpful, Authoritative, 'No-Fluff').
         
-        "Documentation Logic (SudoDocs-tv)": """
-        ROLE: Senior DevRel (Tone: High-Energy, Visual).
-        STRUCTURE: Pain Point -> Solution -> Demo Walkthrough -> Summary.
-        RULE: Focus on [VISUAL CUES] and "Aha!" moments.
+        STRUCTURE:
+        1. THE HOOK: The immediate problem/news.
+        2. THE DIAGNOSIS: Why is this happening? (Root Cause).
+        3. THE FIX/LESSON: How to solve it or what it means for the industry.
+        4. THE TAKEAWAY: Final thought for the reader.
+        
+        RULE: Use Analogies (Lego, Traffic) to explain complex concepts. Write as a BLOG POST/ARTICLE. No visual placeholders.
         """
     }
     
-    # Fallback for mode selection
-    instruction_text = system_instructions.get(mode, system_instructions["Cinema Logic (Realist-Industrial Critic)"])
-
     prompt = f"""
-    {instruction_text}
+    {system_instructions[mode]}
     
     INPUTS:
     - Topic: {title}
@@ -116,12 +113,12 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     - User Vibes/Notes: "{notes}"
     - Technical Ratings: {matrix_data}
     
-    TASK: Write a YouTube Video Script + Metadata.
+    TASK: Write a High-Quality Article/Essay + Metadata.
     
     FORMAT:
     ### TITLES (3 Options - Clickable but Honest)
     ### DESCRIPTION (SEO Optimized)
-    ### SCRIPT (Spoken Narration with [VISUAL CUES])
+    ### ARTICLE BODY (Pure text, engaging prose, no visual cues)
     ### TAGS (15 comma-separated)
     """
     
