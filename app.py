@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Professional Studio Aesthetic
+# --- FIXED CSS BLOCK ---
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #c9d1d9; }
@@ -22,7 +22,7 @@ st.markdown("""
         background-color: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 15px;
     }
     </style>
-    """, unsafe_content_label=True)
+    """, unsafe_allow_html=True)  # <--- FIXED PARAMETER HERE
 
 # --- BACKEND LOGIC ---
 
@@ -30,7 +30,6 @@ def run_deep_research(topic, mode, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash')
     
-    # Updated Prompts
     prompts = {
         "Cinema Logic (Beyond Cinemas)": f"""
         ACT AS: Film Historian & Scraper.
@@ -46,7 +45,6 @@ def run_deep_research(topic, mode, api_key):
         OUTPUT: Bullet points focused on 'Insider Insights'.
         """,
         
-        # --- RE-TUNED DOCUMENTATION LOGIC ---
         "Documentation Logic (SudoDocs-tv)": f"""
         ACT AS: Developer Advocate / YouTube Educator.
         TOPIC: {topic} (e.g., Sphinx, DITA, AI Agents).
@@ -71,7 +69,6 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-pro')
     
-    # Updated System Instructions
     system_instructions = {
         "Cinema Logic (Beyond Cinemas)": """
         ROLE: Auteur Theory Critic.
@@ -81,7 +78,6 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
         ROLE: Systemic Tech Reporter.
         LOGIC: Root Cause Analysis. Explain WHY it happened, don't just report WHAT happened.
         """,
-        # --- RE-TUNED DOCUMENTATION LOGIC ---
         "Documentation Logic (SudoDocs-tv)": """
         ROLE: Senior DevRel & Video Creator (Tone: Friendly, authoritative, high-energy).
         GOAL: Teach complex docs-as-code concepts simply.
@@ -154,7 +150,6 @@ def render_technical_matrix(mode):
             data['Systemic_Stress'] = st.selectbox("Failure Type", ["Single Point", "Cascading", "Security"])
 
     elif mode == "Documentation Logic (SudoDocs-tv)":
-        # --- NEW VIDEO-FOCUSED SLIDERS ---
         c1, c2 = st.columns(2)
         with c1:
             data['Visual_Density'] = st.select_slider(
