@@ -190,13 +190,20 @@ def render_technical_matrix(mode):
 # --- MAIN APP LAYOUT ---
 
 with st.sidebar:
-    st.title("🛡️ SudoDocs Script Studio")
+    st.title("🛡️ SudoDocs: Script Studio")
     api_key = st.text_input("Gemini API Key", type="password")
     st.markdown("---")
+    
+    # UPDATE: Ensure these names match the new function keys EXACTLY
     active_mode = st.radio(
-        "Select Channel Logic:",
-        ["Cinema Logic (Beyond Cinemas)", "Tech News Logic (Viral Tech Blog)", "Documentation Logic (SudoDocs-tv)"]
+        "Select Logic Module:",
+        [
+            "Cinema Logic (Realist-Industrial Critic)", 
+            "Tech News Logic (Viral Tech Blog)", 
+            "Documentation Logic (SudoDocs-tv)"
+        ]
     )
+    
     st.info(f"Persona: **{active_mode.split('(')[0]}**")
 
 st.title("📺 SudoDocs: Script Studio")
