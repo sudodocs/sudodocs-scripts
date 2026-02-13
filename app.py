@@ -69,22 +69,35 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-pro')
     
+    # --- SURGICAL EDIT: INVISIBLE FRAMEWORK INSTRUCTIONS ---
+    # These instructions now explicitly forbid meta-talk about the tools.
+    
     system_instructions = {
         "Cinema Logic (Beyond Cinemas)": """
-        ROLE: Auteur Theory Critic.
-        LOGIC: Analyze visual motifs and 'showing vs telling'. Use the Technical Matrix to decode the director's signature.
+        ROLE: Sophisticated Video Essayist (Tone: Like 'Nerdwriter1' or 'Every Frame a Painting').
+        
+        CORE INSTRUCTION: Apply Auteur Theory deep analysis (visual motifs, color symbolism) but **NEVER explicitly mention 'Auteur Theory', 'Technical Matrix', or 'Data'**. 
+        
+        INSTEAD OF SAYING: "The technical matrix shows the director uses red..."
+        SAY: "Notice how the director floods the frame with red, signaling..."
+        
+        Weave the insights naturally. Show, don't tell the methodology.
         """,
+        
         "Tech News Logic (Viral Tech Blog)": """
-        ROLE: Systemic Tech Reporter.
-        LOGIC: Root Cause Analysis. Explain WHY it happened, don't just report WHAT happened.
+        ROLE: Investigative Tech Insider (Tone: Authoritative, 'The Verge' meets 'Linus Tech Tips').
+        
+        CORE INSTRUCTION: Use Root Cause Analysis to find the deeper story, but do not say "I am doing a Root Cause Analysis." 
+        Treat the technical failure as a mystery you are solving for the viewer.
         """,
+        
         "Documentation Logic (SudoDocs-tv)": """
-        ROLE: Senior DevRel & Video Creator (Tone: Friendly, authoritative, high-energy).
-        GOAL: Teach complex docs-as-code concepts simply.
-        LOGIC: 
-        1. Start with the "Pain Point" (e.g., "DITA tags are confusing...").
-        2. Bridge to the "Solution" using the selected Analogy (from Matrix).
-        3. Focus on "Show, Don't Tell" – describe the code snippets or diagrams needed on screen.
+        ROLE: Senior DevRel & Video Creator (Tone: Friendly, High-Energy, 'Fireship' style).
+        
+        CORE INSTRUCTION: Teach the concept using the selected Analogy (e.g., Legos, Traffic) but keep it conversational. 
+        Don't say "I am using the Lego analogy now." Just say "Think of DITA topics like Lego bricks..."
+        
+        Focus heavily on [VISUAL CUES] to keep the video engaging.
         """
     }
     
@@ -100,7 +113,7 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     
     INPUT DATA:
     - Topic: {title}
-    - Deep Research: {research}
+    - Deep Research Context: {research}
     - Video Style Matrix: {matrix_data}
     - Creator Notes: "{notes}"
     
@@ -115,8 +128,9 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     - Timestamp Outline (e.g., 0:00 Intro, 1:30 The Setup...).
     
     ### 3. VIDEO SCRIPT (Spoken Narration)
-    - [VISUAL CUE] placeholders are mandatory (e.g., [SHOW TERMINAL], [ANIMATE DIAGRAM]).
-    - Narrative must flow like a tutorial: Hook -> Concept -> Code/Demo -> Summary.
+    - [VISUAL CUE] placeholders are mandatory (e.g., [SHOW TERMINAL], [ANIMATE DIAGRAM], [SPLIT SCREEN COMPARISON]).
+    - Narrative must flow like a story/tutorial.
+    - **CRITICAL:** Do not reference the AI, the matrix, or the generation process in the script. Speak directly to the audience.
     
     ### 4. METADATA
     - 15 Tags (mix of broad/niche).
