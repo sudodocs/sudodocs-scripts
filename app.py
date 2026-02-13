@@ -30,12 +30,19 @@ def run_deep_research(topic, mode, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-flash')
     
+    # RE-ENGINEERED PROMPTS
     prompts = {
-        "Cinema Logic (Beyond Cinemas)": f"""
-        ACT AS: Film Historian & Scraper.
+        "Cinema Logic (Realist-Industrial Critic)": f"""
+        ACT AS: Cultural & Industrial Analyst (NOT just a film critic).
         TOPIC: {topic}
-        EXTRACT: Director Signature, Production History, Audience vs Critic Gap, Interior Meaning.
-        OUTPUT: Structured summary for a scriptwriter.
+        
+        EXECUTE "INDUSTRIAL BENCHMARKING":
+        1. CORPORATE PARALLEL: Does the protagonist's struggle mirror a real-world business rise/fall (e.g., Nokia, Apple, Enron)?
+        2. GEOPOLITICAL CONTEXT: If it's a spy/political thriller, how does it reflect current power dynamics?
+        3. SYSTEMIC STRUGGLE: Identify the "System" the individual is fighting (e.g., The Exams, The Corporate Ladder, The Algorithm).
+        4. VANTAGE POINTS: Whose perspective drives the narrative "Why"?
+        
+        OUTPUT: Strategic context for a "Realist-Industrial" review.
         """,
         
         "Tech News Logic (Viral Tech Blog)": f"""
@@ -47,15 +54,9 @@ def run_deep_research(topic, mode, api_key):
         
         "Documentation Logic (SudoDocs-tv)": f"""
         ACT AS: Developer Advocate / YouTube Educator.
-        TOPIC: {topic} (e.g., Sphinx, DITA, AI Agents).
-        
-        RESEARCH FOR VIDEO ENGAGEMENT:
-        1. THE STRUGGLE: What specifically confuses users about this? (e.g., "Why does Sphinx build fail silently?")
-        2. THE "AHA!" MOMENT: What is the visual concept that unlocks understanding?
-        3. VISUAL ASSETS: Identify needed diagrams (e.g., "DITA Map Hierarchy") vs. Live Code demos.
-        4. REAL-WORLD USE CASE: Where is this actually used? (e.g., "Linux Kernel docs uses Sphinx").
-        
-        OUTPUT: A list of engagement hooks and visual analogies.
+        TOPIC: {topic}
+        RESEARCH FOR ENGAGEMENT: Pain Points, "Aha!" Moments, Visual Assets, Real-World Use Cases.
+        OUTPUT: Engagement hooks and analogies.
         """
     }
     
@@ -64,46 +65,43 @@ def run_deep_research(topic, mode, api_key):
         return response.text
     except Exception as e:
         return f"Research Engine Error: {e}"
-
+        
 def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-pro')
     
-    # --- SURGICAL EDIT: INVISIBLE FRAMEWORK INSTRUCTIONS ---
-    # These instructions now explicitly forbid meta-talk about the tools.
-    
     system_instructions = {
-        "Cinema Logic (Beyond Cinemas)": """
-        ROLE: Sophisticated Video Essayist (Tone: Like 'Nerdwriter1' or 'Every Frame a Painting').
+        # --- NEW "REALIST-INDUSTRIAL" PERSONA ---
+        "Cinema Logic (Realist-Industrial Critic)": """
+        ROLE: Realist-Industrial Critic.
+        TONE: Skeptical of "content," reverent of "craft." Uses "Business Logic" to explain narrative failures.
         
-        CORE INSTRUCTION: Apply Auteur Theory deep analysis (visual motifs, color symbolism) but **NEVER explicitly mention 'Auteur Theory', 'Technical Matrix', or 'Data'**. 
+        VOCABULARY RULES:
+        - PRAISE: "Rare gem," "finesse," "second nature," "resilience," "vantage point."
+        - CRITIQUE: "Marvel junk," "B-grade," "dull CGIs," "productized," "factory-made."
         
-        INSTEAD OF SAYING: "The technical matrix shows the director uses red..."
-        SAY: "Notice how the director floods the frame with red, signaling..."
-        
-        Weave the insights naturally. Show, don't tell the methodology.
+        NARRATIVE STRUCTURE (STRICT 5 ACTS):
+        1. THE ANCHOR: Start with a personal anecdote or rhetorical question about the *theme* (not the movie).
+        2. THE SETUP (BENCHMARKING): Compare the story to a corporate history (e.g., "Just like Nokia failed to adapt...").
+        3. THE 'WHY': Explain the character's "Vantage Point." Focus on motivation, not plot points.
+        4. THE CRITIQUE: Evaluate acting ("second nature") vs. technicals ("dull CGIs").
+        5. THE VERDICT: A spoiler-free summary of the "Exhilarating" (or disappointing) experience.
         """,
         
         "Tech News Logic (Viral Tech Blog)": """
-        ROLE: Investigative Tech Insider (Tone: Authoritative, 'The Verge' meets 'Linus Tech Tips').
-        
-        CORE INSTRUCTION: Use Root Cause Analysis to find the deeper story, but do not say "I am doing a Root Cause Analysis." 
-        Treat the technical failure as a mystery you are solving for the viewer.
+        ROLE: Systemic Tech Reporter.
+        LOGIC: Root Cause Analysis. Explain WHY it happened, don't just report WHAT happened.
         """,
         
         "Documentation Logic (SudoDocs-tv)": """
-        ROLE: Senior DevRel & Video Creator (Tone: Friendly, High-Energy, 'Fireship' style).
-        
-        CORE INSTRUCTION: Teach the concept using the selected Analogy (e.g., Legos, Traffic) but keep it conversational. 
-        Don't say "I am using the Lego analogy now." Just say "Think of DITA topics like Lego bricks..."
-        
-        Focus heavily on [VISUAL CUES] to keep the video engaging.
+        ROLE: Senior DevRel & Video Creator (Tone: Friendly, High-Energy).
+        LOGIC: Teach using Analogies. Focus on [VISUAL CUES].
         """
     }
     
     # Metadata Formulas
     title_formulas = {
-        "Cinema Logic (Beyond Cinemas)": "[Adjective] + [Topic] + [Provocative Question]",
+        "Cinema Logic (Realist-Industrial Critic)": "[Provocative Question] + [Topic] + [Industrial Verdict]",
         "Tech News Logic (Viral Tech Blog)": "[Topic] + [Causal Factor] + [Outcome]",
         "Documentation Logic (SudoDocs-tv)": "Stop Doing [Mistake] | How to Master [Topic] in [Time]"
     }
@@ -113,27 +111,28 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
     
     INPUT DATA:
     - Topic: {title}
-    - Deep Research Context: {research}
-    - Video Style Matrix: {matrix_data}
-    - Creator Notes: "{notes}"
+    - Research Context: {research}
+    - Thematic Matrix: {matrix_data}
+    - User Notes: "{notes}"
     
     TASK: Generate a 2026 Viral Content Package.
     
-    ### 1. CLICK-DRIVEN TITLES (3 Options)
+    ### 1. TITLES (3 Options)
     - Formula: {title_formulas[mode]}
     
     ### 2. DESCRIPTION
     - Hook + Keyword (first 125 chars).
     - Summary with "Key Takeaways".
-    - Timestamp Outline (e.g., 0:00 Intro, 1:30 The Setup...).
+    - Timestamp Outline.
     
     ### 3. VIDEO SCRIPT (Spoken Narration)
-    - [VISUAL CUE] placeholders are mandatory (e.g., [SHOW TERMINAL], [ANIMATE DIAGRAM], [SPLIT SCREEN COMPARISON]).
-    - Narrative must flow like a story/tutorial.
-    - **CRITICAL:** Do not reference the AI, the matrix, or the generation process in the script. Speak directly to the audience.
+    - **STRICTLY FOLLOW THE 5-ACT STRUCTURE.**
+    - Use the specific vocabulary (finesse, junk, resilience).
+    - Compare the film's conflict to a Real-World Industry/Corporate struggle.
+    - [VISUAL CUE] placeholders are mandatory.
     
     ### 4. METADATA
-    - 15 Tags (mix of broad/niche).
+    - 15 Tags.
     """
     
     try:
@@ -145,16 +144,32 @@ def generate_viral_package(mode, title, research, notes, matrix_data, api_key):
 # --- UI COMPONENTS ---
 
 def render_technical_matrix(mode):
-    st.subheader("🎛️ Video Style Matrix")
+    st.subheader("🎛️ Strategic Matrix")
     data = {}
     
-    if mode == "Cinema Logic (Beyond Cinemas)":
+    if mode == "Cinema Logic (Realist-Industrial Critic)":
+        # --- NEW "INDUSTRIAL" INPUTS ---
         c1, c2 = st.columns(2)
         with c1:
-            data['Visual_Motifs'] = st.select_slider("Visual Motifs", ["None", "Subtle", "Dominant"], "Subtle")
-            data['Color_Symbolism'] = st.select_slider("Color Palette", ["Natural", "Stylized", "Discordant"], "Stylized")
+            data['Primary_Theme'] = st.selectbox(
+                "Thematic Focus", 
+                ["Resilience (Individual vs System)", "Corporate Strategy/Dynamics", "Geopolitical Fidelity", "Social Validation/Fame"]
+            )
+            data['Industry_Parallel'] = st.text_input(
+                "Corporate/Historical Benchmark", 
+                placeholder="e.g. Nokia's Fall, Apple's Rise, The 2008 Crash"
+            )
         with c2:
-            data['Screenplay_Structure'] = st.selectbox("Structure", ["Linear", "Episodic", "Fragmented"])
+            data['Tone_Bias'] = st.select_slider(
+                "Critical Stance", 
+                ["Cynical (Marvel Junk)", "Skeptical", "Balanced", "High-Praise (Rare Gem)"], 
+                "Balanced"
+            )
+            data['Character_Depth'] = st.select_slider(
+                "Performance Level", 
+                ["Productized/Plastic", "Competent", "Second Nature (Transformative)"], 
+                "Competent"
+            )
             
     elif mode == "Tech News Logic (Viral Tech Blog)":
         c1, c2 = st.columns(2)
@@ -166,25 +181,9 @@ def render_technical_matrix(mode):
     elif mode == "Documentation Logic (SudoDocs-tv)":
         c1, c2 = st.columns(2)
         with c1:
-            data['Visual_Density'] = st.select_slider(
-                "Visual Style", 
-                ["Talking Head", "Balanced", "Heavy Screen-Share", "Animation Heavy"], 
-                "Heavy Screen-Share"
-            )
-            data['Prerequisite_Level'] = st.select_slider(
-                "Target Audience", 
-                ["Total Beginner", "Junior Dev", "Senior Architect"], 
-                "Junior Dev"
-            )
+            data['Visual_Density'] = st.select_slider("Visual Style", ["Talking Head", "Screen-Share Heavy"], "Screen-Share Heavy")
         with c2:
-            data['Teaching_Analogy'] = st.selectbox(
-                "Core Analogy Style", 
-                ["None/Direct", "Construction/Building", "Cooking/Recipes", "Lego Blocks", "Traffic/Flow"]
-            )
-            data['Demo_Type'] = st.selectbox(
-                "Demonstration Format", 
-                ["Live Coding", "Diagram Walkthrough", "Before/After Comparison", "Mistake Fix"]
-            )
+            data['Analogy'] = st.selectbox("Analogy", ["Lego", "Construction", "Traffic"])
             
     return str(data)
 
