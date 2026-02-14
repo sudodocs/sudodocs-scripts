@@ -5,7 +5,7 @@ import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="SudoDocs: Master Script Studio",
+    page_title="SudoDocs: Script Studio",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -186,7 +186,7 @@ def render_matrix(mode):
 # --- MAIN LAYOUT ---
 
 with st.sidebar:
-    st.title("🎬 SudoDocs Studio")
+    st.title("🎬 SudoDocs Script Studio")
     api_key = st.text_input("Gemini API Key", type="password")
     st.divider()
     
@@ -286,4 +286,4 @@ if 'pkg' in st.session_state:
         st.error("Failed to generate. Check your API Key or try again.")
 
 st.divider()
-st.caption("Master Engine v5.1 Light | SudoDocs & Beyond Cinemas")
+st.caption("Master Engine v5.1 Light | SudoDocs TV & Beyond Cinemas")
