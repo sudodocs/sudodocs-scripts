@@ -63,7 +63,7 @@ def perform_grounded_research(topic, mode, source_type, api_key):
     """Fetches real-time context using Google Search grounding."""
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        model_name='gemini-2.5-pro',
+        model_name='gemini-2.5-flash',
         tools=[{"google_search": {}}]
     )
     
@@ -99,7 +99,7 @@ def perform_grounded_research(topic, mode, source_type, api_key):
 def generate_script_package(mode, topic, research, notes, matrix, source_type, api_key):
     """Synthesizes research and matrix into a structured script package."""
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     personas = {
         "Film & Series Analysis": "Master Film Scholar. Use CACI (Character Arc Index) and AFW (Adaptation Worthiness) logic.",
