@@ -81,10 +81,16 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     """Universal API caller with exponential backoff and grounding."""
     genai.configure(api_key=api_key)
     
-    # Correct tool configuration for Google Search
-    tools = [{"google_search": {}}] if use_search else None
+    tools = None
+    if use_search:
+        # FIX: Use the explicit Proto object to prevent "Unknown field" errors
+        # This tells the SDK exactly which tool to use without guessing
+        tools = [
+            genai.protos.Tool(
+                google_search_retrieval=genai.protos.GoogleSearchRetrieval()
+            )
+        ]
     
-    # Note: Ensure 'gemini-2.0-flash' or 'gemini-1.5-flash' is used if '2.5' isn't available
     model = genai.GenerativeModel(
         model_name='gemini-2.5-flash', 
         system_instruction=system_instruction,
