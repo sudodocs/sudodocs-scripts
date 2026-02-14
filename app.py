@@ -5,13 +5,12 @@ import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="SudoDocs: Script Studio",
-    page_icon="🎬",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="Script Architect Pro",
+    page_icon="✍️",
+    layout="centered", # Centered layout for a cleaner, linear reading experience
 )
 
-# --- 2026 PROFESSIONAL LIGHT UI ---
+# --- PROFESSIONAL LIGHT THEME CSS ---
 st.markdown("""
     <style>
     :root {
@@ -20,270 +19,241 @@ st.markdown("""
         --bg-card: #ffffff;
         --border: #e2e8f0;
         --text-main: #1e293b;
-        --text-sub: #64748b;
     }
-    
     .stApp { background-color: var(--bg-main); color: var(--text-main); }
     
-    /* Global Text Visibility */
-    p, span, label, .stMarkdown, .stSelectbox label, .stSlider label {
+    /* Input Fields */
+    .stTextInput input, .stTextArea textarea, .stSelectbox div {
+        background-color: white !important;
+        border: 1px solid var(--border) !important;
         color: var(--text-main) !important;
     }
 
     /* Buttons */
     .stButton>button {
         background-color: var(--primary); color: white; border-radius: 8px; 
-        height: 3.5em; font-weight: 600; border: none; width: 100%;
-        transition: all 0.2s ease;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        height: 3.5em; font-weight: 600; width: 100%; border: none;
+        transition: all 0.2s;
     }
-    .stButton>button:hover { background-color: #1d4ed8; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .stButton>button:hover { background-color: #1d4ed8; transform: translateY(-1px); }
 
-    /* Cards & Containers */
-    .matrix-card {
-        background-color: var(--bg-card); padding: 24px; border-radius: 12px;
-        border: 1px solid var(--border); margin-bottom: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px; white-space: pre-wrap; background-color: transparent;
+        border-radius: 4px 4px 0 0; color: var(--text-main); font-weight: 600;
     }
-    
+    .stTabs [aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* Metric Badges */
     .metric-badge {
-        background-color: #dbeafe; color: #1e40af; padding: 4px 12px; 
-        border-radius: 20px; font-size: 0.85em; font-weight: bold;
+        background-color: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;
+        padding: 4px 12px; border-radius: 6px; font-weight: bold; font-size: 0.9em;
     }
-
-    /* Inputs */
-    .stTextArea textarea, .stTextInput input {
-        background-color: var(--bg-card) !important;
-        color: var(--text-main) !important;
-        border: 1px solid var(--border) !important;
-    }
-    
-    /* Sidebar Fixes */
-    [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid var(--border);
+    .report-card {
+        background-color: white; padding: 20px; border-radius: 12px;
+        border: 1px solid var(--border); margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- BACKEND LOGIC ---
+# --- BACKEND FUNCTIONS ---
 
-def run_deep_research(topic, mode, source_type, api_key):
-    """Deep Research using Gemini 2.5 Flash + Google Search Grounding."""
+def perform_grounded_research(topic, mode, source_type, api_key):
+    """Fetches real-time context using Google Search grounding."""
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        model_name='gemini-2.5-flash',
+        model_name='gemini-2.5-pro',
         tools=[{"google_search": {}}]
     )
     
-    if mode == "Cinema (Deep Analysis)":
+    if mode == "Film & Series Analysis":
         prompt = (
-            f"Conduct a deep analytical research on '{topic}' (Source: {source_type}). "
-            "1. ADAPTATION: Identify fidelity to the source material vs creative liberties taken. "
-            "2. CHARACTER ARCS: Identify the 'Ghost' (trauma), 'Lie' (belief), and 'Truth' (need) for main and side characters. "
-            "3. REAL-WORLD PARALLELS: Find current or historical news events that mirror the core theme of this story. "
-            "4. TECHNICALS: Research director motifs (Auteur), cinematography styles, and editing rhythm. "
-            "5. DATA: Fetch IMDb trivia, Rotten Tomatoes consensus, and Letterboxd keywords."
+            f"Deep research '{topic}' (Source: {source_type}). "
+            "1. ADAPTATION: Identify fidelity vs creative liberties from the source. "
+            "2. CHARACTER: Identify 'Ghost' (trauma), 'Lie' (belief), and 'Truth' (need) for main characters. "
+            "3. REAL-WORLD: Find current news or historical events mirroring the themes. "
+            "4. DATA: Fetch IMDb trivia and critic consensus."
         )
-    elif mode == "Tech News (Viral Blog)":
+    elif mode == "Tech News & Investigative":
         prompt = (
-            f"Perform Root Cause Analysis on '{topic}'. "
-            "1. IMPACT: Find user percentage affected and technical criticality. "
-            "2. THE GAP: Contrast official company PR statements with community findings on Reddit/GitHub. "
-            "3. CONSEQUENCE: Research stock market reactions or industry-wide shifts."
+            f"Root Cause Analysis on '{topic}'. "
+            "1. IMPACT: Find affected user stats and technical severity. "
+            "2. THE GAP: Contrast company PR vs community findings (Reddit/GitHub). "
+            "3. MARKET: Find any stock or industry shifts."
         )
-    else: # SudoDocs Educator
+    else: # Educational Technology
         prompt = (
-            f"Educational gap analysis for '{topic}'. "
-            "1. KNOWLEDGE GAP: What are the common beginner 'newbie traps' for this tool? "
-            "2. MECHANISM: Explain the 'Why' (architecture) before the 'How' (syntax). "
-            "3. TRENDS: Identify 2026 industry standards (Docs-as-Code)."
+            f"Educational analysis for '{topic}'. "
+            "1. PITFALLS: Common beginner mistakes. "
+            "2. ARCHITECTURE: The 'Why' (logic) vs the 'How' (steps). "
+            "3. TRENDS: 2026 industry standards for this tech."
         )
     
     try:
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Research Engine Error: {e}"
+        return f"Research Error: {e}"
 
-def generate_script_package(mode, topic, research, notes, matrix_data, source_type, api_key):
-    """Synthesizes all research into a structured script suite."""
+def generate_script_package(mode, topic, research, notes, matrix, source_type, api_key):
+    """Synthesizes research and matrix into a structured script package."""
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-pro')
     
-    system_instructions = {
-        "Cinema (Deep Analysis)": f"""
-        ROLE: Master Film Scholar. 
-        TASK: Analyze character arcs (CACI), adaptation fidelity (AFW) from {source_type}, 
-        and find real-world news parallels. Score Script, Direction, Editing, and Acting.
-        """,
-        "Tech News (Viral Blog)": "Investigative Tech Journalist. Focus on Root Cause Analysis and Impact.",
-        "SudoDocs (Educational)": "Senior Technical Educator. Use Feynman Technique."
+    personas = {
+        "Film & Series Analysis": "Master Film Scholar. Use CACI (Character Arc Index) and AFW (Adaptation Worthiness) logic.",
+        "Tech News & Investigative": "Investigative Journalist. Use RCA (Root Cause Analysis).",
+        "Educational Technology": "Senior Technical Educator. Use Feynman Technique."
     }
     
     prompt = f"""
-    {system_instructions.get(mode)}
+    {personas.get(mode)}
+    TOPIC: {topic}
+    SOURCE: {source_type}
+    RESEARCH: {research}
+    CREATOR NOTES: {notes}
+    MATRIX: {matrix}
     
-    INPUT DATA:
-    - Topic: {topic}
-    - Research Background: {research}
-    - User's Vision: "{notes}"
-    - Matrix: {matrix_data}
-    
-    TASK: Generate a viral YouTube package in JSON.
-    REQUIRED FIELDS:
-    - viral_title, hook_script, script_outline, seo_metadata
-    - character_analysis (list with name, role, arc_score, ghost_vs_truth)
-    - thematic_resonance (real_world_event, explanation)
-    - adaptation_report (fidelity_score, liberty_worthiness, justification)
-    - technical_report_card (script, direction, editing, acting)
+    TASK: Generate a viral, high-authority YouTube package in JSON.
+    FIELDS: viral_title, hook_script, script_outline, 
+    character_matrix (name, role, arc_score, ghost_vs_truth),
+    thematic_resonance (real_world_event, explanation),
+    adaptation_report (fidelity_score, worthiness_score, justification),
+    technical_report (script, direction, editing, acting scores 0-10),
+    seo_metadata (description, tags).
     """
     
     for delay in [1, 2, 4]:
         try:
             response = model.generate_content(prompt)
-            clean_json = response.text.replace("```json", "").replace("```", "").strip()
-            return json.loads(clean_json)
+            clean = response.text.replace("```json", "").replace("```", "").strip()
+            return json.loads(clean)
         except:
             time.sleep(delay)
-    return {"error": "Failed to synthesize package."}
+    return {"error": "Synthesis failed."}
 
-# --- UI COMPONENTS ---
+# --- APPLICATION FLOW ---
 
-def render_matrix(mode):
-    data = {}
-    st.subheader("⚙️ Technical Matrix")
-    st.markdown('<div class="matrix-card">', unsafe_allow_html=True)
-    
-    if mode == "Cinema (Deep Analysis)":
-        c1, c2 = st.columns(2)
-        with c1:
-            data['Theory_Lens'] = st.select_slider("Film Theory Lens", ["Formalist", "Psychological", "Auteur", "Montage"])
-            data['Visual_Style'] = st.select_slider("Visual Signature", ["Generic", "Stylish", "Iconic"])
-        with c2:
-            data['Fidelity'] = st.select_slider("Fidelity Target", ["Loose", "Moderate", "Literal"])
-            data['Tone'] = st.selectbox("Narrative Tone", ["Melancholic", "Frantic", "Academic", "Satirical"])
-            
-    elif mode == "Tech News (Viral Blog)":
-        c1, c2 = st.columns(2)
-        with c1:
-            data['Criticality'] = st.select_slider("Severity", ["Bug", "Outage", "Systemic Crisis"])
-            data['Impact'] = st.select_slider("Scope", ["Niche", "Widespread", "Global"])
-        with c2:
-            data['Vibe'] = st.selectbox("Journalistic Tone", ["Whistleblower", "Analyst", "Helpful Insider"])
+st.title("🚀 Script Architect Pro")
+st.caption("AI-Powered Research & Content Synthesis Engine")
 
-    else: # SudoDocs
-        c1, c2 = st.columns(2)
-        with c1:
-            data['Level'] = st.select_slider("Concept Complexity", ["Junior", "Senior", "Architect"])
-            data['Style'] = st.select_slider("Teaching Style", ["Theory-Heavy", "Balanced", "Hands-on"])
-        with c2:
-            data['Toolchain'] = st.selectbox("Domain Focus", ["Docs-as-Code", "API Architecture", "DevOps"])
-            
-    st.markdown('</div>', unsafe_allow_html=True)
-    return str(data)
-
-# --- MAIN LAYOUT ---
-
+# Sidebar for Setup
 with st.sidebar:
-    st.title("🎬 SudoDocs Script Studio")
+    st.header("🔑 Setup")
     api_key = st.text_input("Gemini API Key", type="password")
     st.divider()
+    active_mode = st.selectbox("Content Mode", ["Film & Series Analysis", "Tech News & Investigative", "Educational Technology"])
     
-    active_mode = st.radio(
-        "Persona Mode:", 
-        ["Cinema (Deep Analysis)", "Tech News (Viral Blog)", "SudoDocs (Educational)"]
-    )
+    source_type = "Original"
+    if active_mode == "Film & Series Analysis":
+        source_type = st.radio("Source Material", ["Original", "Book", "Comic", "True Event", "Remake"])
     
-    source_material = "N/A"
-    if active_mode == "Cinema (Deep Analysis)":
-        source_material = st.radio("Source Material:", ["Original", "Book", "Comic Book", "True Event", "Remake"])
-
     st.divider()
-    st.caption("v5.1 | Master Engine Light")
+    if st.button("Clear Session"):
+        st.session_state.clear()
+        st.rerun()
 
-st.title(f"🚀 {active_mode} Engine")
+# Linear Flow via Tabs
+tab1, tab2, tab3 = st.tabs(["1. Research & Context", "2. Analysis Matrix", "3. Final Script Studio"])
 
-col1, col2 = st.columns([1, 1], gap="large")
-
-with col1:
-    st.markdown("### 1. Research & Inputs")
-    topic = st.text_input("Title / Subject", placeholder="e.g., The Bear, Crowdstrike Outage, Sphinx Docs")
+# --- TAB 1: RESEARCH ---
+with tab1:
+    st.subheader("Gather Intelligence")
+    topic = st.text_input("What is your topic or title?", placeholder="e.g., The Bear, Crowdstrike Outage, Rust Programming")
     
-    if st.button("🔍 Step 1: Deep Research"):
-        if not api_key: st.error("Need API Key")
-        elif not topic: st.error("Enter a topic")
+    if st.button("🔍 Run Grounded Research"):
+        if not api_key: st.warning("Please enter an API key in the sidebar.")
+        elif not topic: st.warning("Please enter a topic.")
         else:
-            with st.spinner("Analyzing Global Databases..."):
-                st.session_state['res'] = run_deep_research(topic, active_mode, source_material, api_key)
-    
-    if 'res' in st.session_state:
-        with st.expander("📝 Extracted Intelligence Brief", expanded=True):
-            st.markdown(st.session_state['res'])
+            with st.spinner("Accessing global databases..."):
+                st.session_state['research'] = perform_grounded_research(topic, active_mode, source_type, api_key)
 
-    matrix_data = render_matrix(active_mode)
+    if 'research' in st.session_state:
+        st.info("### Research Briefing")
+        st.markdown(st.session_state['research'])
+        st.success("Research complete! Move to the 'Analysis Matrix' tab.")
 
-with col2:
-    st.markdown("### 2. Synthesis")
-    notes = st.text_area("Your Unique Angle:", height=180, placeholder="The 'secret sauce' everyone misses...")
+# --- TAB 2: MATRIX & NOTES ---
+with tab2:
+    st.subheader("Fine-Tune Analysis")
     
-    if st.button("🚀 Step 2: Build Final Package"):
-        if not api_key or not topic: st.error("Missing Info")
+    st.markdown('<div class="report-card">', unsafe_allow_html=True)
+    matrix_data = {}
+    if active_mode == "Film & Series Analysis":
+        c1, c2 = st.columns(2)
+        with c1:
+            matrix_data['Theory'] = st.select_slider("Film Theory Lens", ["Formalist", "Psychological", "Auteur", "Montage"])
+            matrix_data['Style'] = st.select_slider("Visual Signature", ["Standard", "Stylized", "Iconic"])
+        with c2:
+            matrix_data['Fidelity'] = st.select_slider("Target Fidelity", ["Loose", "Balanced", "Literal"])
+            matrix_data['Tone'] = st.selectbox("Narrative Tone", ["Melancholic", "Frantic", "Academic", "Urgent"])
+    elif active_mode == "Tech News & Investigative":
+        matrix_data['Criticality'] = st.select_slider("Severity", ["Bug", "Outage", "Systemic Failure"])
+        matrix_data['Scope'] = st.select_slider("User Impact", ["Niche", "Widespread", "Global"])
+    else:
+        matrix_data['Complexity'] = st.select_slider("Concept Level", ["Junior", "Senior", "Architect"])
+        matrix_data['Style'] = st.select_slider("Pedagogy", ["Theory-Heavy", "Balanced", "Code-Along"])
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    user_notes = st.text_area("Your Secret Sauce", placeholder="Your unique angle or 'hot take' that the research missed...", height=150)
+    
+    if st.button("🎨 Synthesize Script"):
+        if 'research' not in st.session_state: st.error("Please run research in Tab 1 first.")
         else:
-            with st.spinner("Architecting Viral Suite..."):
-                pkg = generate_script_package(active_mode, topic, st.session_state.get('res', ''), notes, matrix_data, source_material, api_key)
-                st.session_state['pkg'] = pkg
+            with st.spinner("Architecting content package..."):
+                st.session_state['package'] = generate_script_package(active_mode, topic, st.session_state['research'], user_notes, str(matrix_data), source_type, api_key)
+                st.success("Synthesis complete! View your results in 'Final Script Studio'.")
 
-# --- OUTPUT DISPLAY ---
-
-if 'pkg' in st.session_state:
-    p = st.session_state['pkg']
-    if "error" not in p:
-        st.divider()
-        st.subheader("📦 Generated Script Suite")
-        
-        st.success(f"**Viral Title:** {p.get('viral_title')}")
-        
-        o1, o2 = st.columns([1.2, 1])
-        
-        with o1:
+# --- TAB 3: FINAL OUTPUT ---
+with tab3:
+    if 'package' not in st.session_state:
+        st.info("Generate your script package in Tab 2 to view results here.")
+    else:
+        p = st.session_state['package']
+        if "error" in p: st.error(p['error'])
+        else:
+            st.success(f"### {p.get('viral_title')}")
+            
+            # THEMATIC PARALLELS
             st.markdown("#### 🌍 Thematic Resonance")
             tr = p.get('thematic_resonance', {})
-            st.warning(f"**Real-World Parallel:** {tr.get('real_world_event')}")
+            st.warning(f"**Parallel Event:** {tr.get('real_world_event')}")
             st.write(tr.get('explanation'))
             
-            with st.expander("📜 Script Flow & Hook", expanded=True):
-                st.info(f"🪝 **Hook:** {p.get('hook_script')}")
-                for step in p.get('script_outline', []):
-                    st.write(f"🔹 {step}")
+            # CHARACTER ANALYSIS
+            if active_mode == "Film & Series Analysis":
+                st.markdown("#### 👥 Character Arc Completion Index (CACI)")
+                for char in p.get('character_matrix', []):
+                    st.markdown(f"**{char['name']}** <span class='metric-badge'>{char['arc_score']}/10</span>", unsafe_allow_html=True)
+                    st.caption(char['ghost_vs_truth'])
 
-        with o2:
-            if active_mode == "Cinema (Deep Analysis)":
-                st.markdown("#### 🏆 Technical Report Card")
-                trc = p.get('technical_report_card', {})
-                tc1, tc2, tc3, tc4 = st.columns(4)
-                tc1.metric("Script", f"{trc.get('script')}/10")
-                tc2.metric("Directing", f"{trc.get('direction')}/10")
-                tc3.metric("Editing", f"{trc.get('editing')}/10")
-                tc4.metric("Acting", f"{trc.get('acting')}/10")
-
-                st.markdown("#### 📚 Adaptation Report")
+                st.markdown("#### 📚 Adaptation Fidelity Report")
                 ar = p.get('adaptation_report', {})
                 ac1, ac2 = st.columns(2)
-                ac1.metric("Fidelity", f"{ar.get('fidelity_score')}/10")
-                ac2.metric("Liberty Worth", f"{ar.get('liberty_worthiness')}/10")
+                ac1.metric("Fidelity Score", f"{ar.get('fidelity_score')}/10")
+                ac2.metric("Liberty Worthiness", f"{ar.get('worthiness_score')}/10")
                 st.caption(ar.get('justification'))
 
-                st.markdown("#### 👥 Character Arc Matrix (CACI)")
-                for c in p.get('character_analysis', []):
-                    st.markdown(f"**{c['name']}** <span class='metric-badge'>{c['arc_score']}/10</span>", unsafe_allow_html=True)
-                    st.caption(c['ghost_vs_truth'])
+                st.markdown("#### 🏆 Technical Report Card")
+                trc = p.get('technical_report', {})
+                tc1, tc2, tc3, tc4 = st.columns(4)
+                tc1.metric("Script", trc.get('script'))
+                tc2.metric("Directing", trc.get('direction'))
+                tc3.metric("Editing", trc.get('editing'))
+                tc4.metric("Acting", trc.get('acting'))
+
+            # COMMON SCRIPT DATA
+            st.markdown("#### 🪝 The Hook")
+            st.info(p.get('hook_script'))
             
-            st.markdown("#### 🔍 Metadata")
+            with st.expander("📜 Master Script Outline", expanded=True):
+                for item in p.get('script_outline', []):
+                    st.write(f"• {item}")
+            
+            st.markdown("#### 🔍 SEO Metadata")
             st.caption(p.get('seo_metadata', {}).get('description'))
             st.write(f"**Tags:** {', '.join(p.get('seo_metadata', {}).get('tags', []))}")
-    else:
-        st.error("Failed to generate. Check your API Key or try again.")
 
 st.divider()
-st.caption("Master Engine v5.1 Light | SudoDocs TV & Beyond Cinemas")
+st.caption("Script Architect Pro v1.0 | Grounded 2026 Engine")
