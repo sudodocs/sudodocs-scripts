@@ -77,15 +77,16 @@ st.markdown("""
 
 # --- BACKEND LOGIC ---
 
-defdef call_gemini(api_key, prompt, system_instruction="", use_search=False):
+def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     """Universal API caller with exponential backoff and grounding."""
     genai.configure(api_key=api_key)
     
-    # Updated: Use a list containing a dictionary for google_search
+    # Correct tool configuration for Google Search
     tools = [{"google_search": {}}] if use_search else None
     
+    # Note: Ensure 'gemini-2.0-flash' or 'gemini-1.5-flash' is used if '2.5' isn't available
     model = genai.GenerativeModel(
-        model_name='gemini-2.5-flash', # Note: Ensure you use a valid model version (e.g., 1.5 or 2.0)
+        model_name='gemini-2.5-flash', 
         system_instruction=system_instruction,
         tools=tools
     )
