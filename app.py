@@ -86,7 +86,9 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     # Configure tools based on use_search parameter
     tools = None
     if use_search:
-        tools = ['google_search']
+        # Proper configuration for Google Search grounding
+        from google.generativeai import types
+        tools = [types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())]
     
     model = genai.GenerativeModel(
         model_name='gemini-2.5-flash',
