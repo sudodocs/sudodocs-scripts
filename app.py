@@ -77,38 +77,68 @@ st.markdown("""
 
 # --- BACKEND LOGIC ---
 
+import requests
+
 def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     """
     ✅ FIXED: Now properly enables Google Search grounding when use_search=True
+    Uses REST API for better grounding support
     """
-    genai.configure(api_key=api_key)
-    
-    # Configure tools based on use_search parameter
-    tools = None
-    if use_search:
-        # Proper configuration for Google Search grounding
-        from google.generativeai import types
-        tools = [types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())]
-    
-    model = genai.GenerativeModel(
-        model_name='gemini-2.5-flash',
-        system_instruction=system_instruction,
-        tools=tools
-    )
-    
-    # Exponential backoff: 1s, 2s, 4s, 8s, 16s
-    for delay in [1, 2, 4, 8, 16]:
-        try:
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            error_msg = str(e).lower()
-            # Don't retry if it's a grounding-specific error
-            if 'grounding' in error_msg or 'search' in error_msg:
-                return f"Error: Google Search grounding may not be enabled for your API key. {str(e)}"
-            if delay == 16:
-                return f"Error: {str(e)}"
-            time.sleep(delay)
+    if not use_search:
+        # Use SDK for non-search queries
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name='gemini-2.5-flash',
+            system_instruction=system_instruction,
+        )
+        for delay in [1, 2, 4, 8, 16]:
+            try:
+                response = model.generate_content(prompt)
+                return response.text
+            except Exception as e:
+                if delay == 16:
+                    return f"Error: {str(e)}"
+                time.sleep(delay)
+    else:
+        # Use REST API with grounding for search queries
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        
+        headers = {'Content-Type': 'application/json'}
+        
+        data = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }],
+            "systemInstruction": {
+                "parts": [{"text": system_instruction}]
+            },
+            "tools": [{
+                "googleSearch": {}
+            }]
+        }
+        
+        for delay in [1, 2, 4, 8, 16]:
+            try:
+                response = requests.post(url, headers=headers, json=data, timeout=60)
+                response.raise_for_status()
+                result = response.json()
+                
+                # Extract text from response
+                if 'candidates' in result and len(result['candidates']) > 0:
+                    parts = result['candidates'][0]['content']['parts']
+                    text_parts = [part.get('text', '') for part in parts if 'text' in part]
+                    return '\n'.join(text_parts)
+                else:
+                    return f"Error: Unexpected response format"
+                    
+            except requests.exceptions.RequestException as e:
+                if delay == 16:
+                    return f"Error: {str(e)}"
+                time.sleep(delay)
+            except Exception as e:
+                if delay == 16:
+                    return f"Error: {str(e)}"
+                time.sleep(delay)
             
 def perform_grounded_research(topic, mode, source_type, api_key):
     """Fetches factual context and real-world parallels using grounding."""
