@@ -79,13 +79,19 @@ st.markdown("""
 
 def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     """
-    Simplified API caller matching 'app_old.py' logic.
-    Refers to internal model knowledge instead of live Google Search tools.
+    ✅ FIXED: Now properly enables Google Search grounding when use_search=True
     """
     genai.configure(api_key=api_key)
+    
+    # Configure tools based on use_search parameter
+    tools = None
+    if use_search:
+        tools = ['google_search_retrieval']
+    
     model = genai.GenerativeModel(
-        model_name='gemini-2.5-pro',
-        system_instruction=system_instruction
+        model_name='gemini-2.5-flash',
+        system_instruction=system_instruction,
+        tools=tools
     )
     
     # Exponential backoff: 1s, 2s, 4s, 8s, 16s
@@ -94,6 +100,10 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
             response = model.generate_content(prompt)
             return response.text
         except Exception as e:
+            error_msg = str(e).lower()
+            # Don't retry if it's a grounding-specific error
+            if 'grounding' in error_msg or 'search' in error_msg:
+                return f"Error: Google Search grounding may not be enabled for your API key. {str(e)}"
             if delay == 16:
                 return f"Error: {str(e)}"
             time.sleep(delay)
@@ -102,28 +112,34 @@ def perform_grounded_research(topic, mode, source_type, api_key):
     """Fetches factual context and real-world parallels using grounding."""
     if mode == "Film & Series Analysis":
         prompt = (
-            f"Perform deep research on '{topic}' (Original Material: {source_type}). "
-            "1. ADAPTATION: Identify fidelity vs creative liberties from the source. "
-            "2. CHARACTER: Identify 'Ghost' (trauma), 'Lie' (belief), and 'Truth' (need) for main characters. "
-            "3. REAL-WORLD: Search for current news or historical events mirroring the core themes of this movie. "
-            "4. DATA: Fetch IMDb trivia and critic consensus from major review aggregators."
+            f"Search the web for the most current and accurate information about '{topic}' (Original Material: {source_type}). "
+            "IMPORTANT: Use real-time search results from IMDb, Rotten Tomatoes, and recent news articles. "
+            "1. RELEASE INFO: When did this air/release? What is the actual release date and status? "
+            "2. ADAPTATION: Identify fidelity vs creative liberties from the source material. "
+            "3. CHARACTER: List the ACTUAL cast and characters from the show/film. For main characters, identify their 'Ghost' (trauma), 'Lie' (belief), and 'Truth' (need). "
+            "4. REAL-WORLD: Find current news or historical events mirroring the core themes. "
+            "5. DATA: Get IMDb rating, number of episodes/runtime, and critic consensus from review aggregators. "
+            "Cite your sources with URLs."
         )
     elif mode == "Tech News & Investigative":
         prompt = (
-            f"Root Cause Analysis on '{topic}'. "
-            "1. IMPACT: Affected user stats and severity. "
-            "2. THE GAP: Company PR statements vs community findings on Reddit, GitHub, or X. "
-            "3. MARKET: Identify stock fluctuations or industry-wide shifts."
+            f"Search the web for the latest information on '{topic}'. "
+            "1. IMPACT: Current affected user stats and severity level. "
+            "2. THE GAP: Company official statements vs community findings on Reddit, GitHub, or X. "
+            "3. MARKET: Recent stock fluctuations or industry-wide shifts. "
+            "4. TIMELINE: When did this occur and what's the current status? "
+            "Cite sources with URLs."
         )
     else: # Educational Technology
         prompt = (
-            f"Educational analysis for '{topic}'. "
-            "1. PITFALLS: Common beginner mistakes or 'newbie traps'. "
-            "2. ARCHITECTURE: The logic ('Why') vs the implementation ('How'). "
-            "3. TRENDS: Modern 2026 industry standards for this specific technology."
+            f"Search for current 2026 information about '{topic}'. "
+            "1. PITFALLS: Common beginner mistakes documented in recent tutorials or Stack Overflow. "
+            "2. ARCHITECTURE: Best practices and design patterns being used today. "
+            "3. TRENDS: Latest industry standards, framework versions, and adoption rates. "
+            "Cite sources with URLs."
         )
     
-    return call_gemini(api_key, prompt, "You are a factual Research Assistant with access to Google Search.", use_search=True)
+    return call_gemini(api_key, prompt, "You are a factual Research Assistant. Always search the web for current, accurate information and cite your sources.", use_search=True)
 
 def generate_script_package(mode, topic, research, notes, matrix, source_type, api_key):
     """Synthesizes all inputs into the final multi-pillar script JSON."""
@@ -136,7 +152,7 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     prompt = f"""
     TOPIC: {topic}
     SOURCE TYPE: {source_type}
-    RESEARCH DATA: {research}
+    RESEARCH DATA (Based on web search): {research}
     CREATOR NOTES: {notes}
     SELECTED MATRIX: {matrix}
     
@@ -148,6 +164,8 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     - adaptation_report: {{ "fidelity_score": 0-10, "worthiness_score": 0-10, "justification": "Why liberties were/weren't worthy" }}
     - technical_report: {{ "script": 0-10, "direction": 0-10, "editing": 0-10, "acting": 0-10 }}
     - viral_title: "String", "hook_script": "String", "script_outline": ["Act 1", "Act 2", "Act 3"], "seo_metadata": {{ "description": "String", "tags": ["tag1", "tag2"] }}
+    
+    Use ONLY the information from the RESEARCH DATA which came from live web searches.
     """
     
     result = call_gemini(api_key, prompt, personas.get(mode))
@@ -165,6 +183,12 @@ st.caption("Content Synthesis Engine for High-Authority Media")
 with st.sidebar:
     st.header("🔑 Authentication")
     api_key = st.text_input("Gemini API Key", type="password")
+    
+    if api_key:
+        st.success("✓ API Key provided")
+    else:
+        st.warning("⚠️ API Key required")
+    
     st.divider()
     active_mode = st.selectbox("Content Mode", ["Film & Series Analysis", "Tech News & Investigative", "Educational Technology"])
     
@@ -183,16 +207,22 @@ tab1, tab2, tab3 = st.tabs(["1. Research & Grounding", "2. Analysis Matrix", "3.
 # --- TAB 1: RESEARCH ---
 with tab1:
     st.subheader("Step 1: Intelligence Gathering")
-    topic = st.text_input("Topic or Title", placeholder="e.g., The Bear Season 3, Crowdstrike Outage, Rust vs C++")
+    st.info("🌐 This step will search the web for real-time information from IMDb, news sites, and other authoritative sources.")
+    
+    topic = st.text_input("Topic or Title", placeholder="e.g., The Night Manager Season 2, Crowdstrike Outage, Rust vs C++")
     
     if st.button("🔍 Execute Research"):
-        if not api_key: st.warning("Please provide an API Key.")
-        elif not topic: st.warning("Please provide a topic.")
+        if not api_key: 
+            st.warning("Please provide an API Key in the sidebar.")
+        elif not topic: 
+            st.warning("Please provide a topic.")
         else:
-            with st.spinner("Accessing global databases..."):
+            with st.spinner("🌐 Searching the web for latest information..."):
                 st.session_state['research'] = perform_grounded_research(topic, active_mode, source_type, api_key)
+                st.session_state['topic'] = topic
 
     if 'research' in st.session_state:
+        st.success("✅ Research Complete")
         st.info("### Research Briefing")
         st.markdown(st.session_state['research'])
         st.success("Context established. Proceed to the 'Analysis Matrix' tab.")
@@ -222,8 +252,10 @@ with tab2:
     user_notes = st.text_area("Your Unique Angle", placeholder="Add your unique observations or 'secret sauce' here...", height=150)
     
     if st.button("🚀 Architect Final Package"):
-        if 'research' not in st.session_state: st.error("Please run Step 1 (Research) first.")
+        if 'research' not in st.session_state: 
+            st.error("Please run Step 1 (Research) first.")
         else:
+            topic = st.session_state.get('topic', 'Unknown Topic')
             with st.spinner("Synthesizing script components..."):
                 st.session_state['package'] = generate_script_package(active_mode, topic, st.session_state['research'], user_notes, str(matrix_data), source_type, api_key)
 
@@ -277,9 +309,9 @@ with tab3:
                 for item in p.get('script_outline', []):
                     st.write(f"• {item}")
             
-            st.markdown("#### 🔍 Metadata")
+            st.markdown("#### 🏷️ Metadata")
             st.caption(p.get('seo_metadata', {}).get('description'))
             st.write(f"**Tags:** {', '.join(p.get('seo_metadata', {}).get('tags', []))}")
 
 st.divider()
-st.caption("Script Architect Pro v1.3 | Grounded Research Fix Applied")
+st.caption("Script Architect Pro v1.4 | ✅ Google Search Grounding FIXED")
