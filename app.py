@@ -195,7 +195,21 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     - character_matrix: [ {{ "name": "Name", "role": "Main/Side", "arc_score": 0-10, "ghost_vs_truth": "String" }} ]
     - adaptation_report: {{ "fidelity_score": 0-10, "worthiness_score": 0-10, "justification": "Why liberties were/weren't worthy" }}
     - technical_report: {{ "script": 0-10, "direction": 0-10, "editing": 0-10, "acting": 0-10 }}
-    - viral_title: "String", "hook_script": "String", "script_outline": ["Act 1", "Act 2", "Act 3"], "seo_metadata": {{ "description": "String", "tags": ["tag1", "tag2"] }}
+    - viral_title: "String"
+    - hook_script: "String (2-3 paragraph opening hook)"
+    - full_script: {{ 
+        "intro": "Full narration for opening (3-4 paragraphs)",
+        "act1": "Complete narration for Act 1 with specific details, quotes, and analysis (4-5 paragraphs)",
+        "act2": "Complete narration for Act 2 with character breakdowns and key moments (4-5 paragraphs)",
+        "act3": "Complete narration for Act 3 with technical analysis and conclusion (4-5 paragraphs)",
+        "outro": "Closing thoughts and call-to-action (2-3 paragraphs)"
+    }}
+    - script_outline: ["Brief Act 1 summary", "Brief Act 2 summary", "Brief Act 3 summary"]
+    - seo_metadata: {{ "description": "String", "tags": ["tag1", "tag2"] }}
+    
+    CRITICAL: The 'full_script' field must contain ACTUAL, READY-TO-READ narration for a YouTube video, not just bullet points or summaries.
+    Write it as if you're the narrator speaking directly to the audience. Use natural, engaging language with rhythm and pacing.
+    Include specific examples, quotes, and data from the research.
     
     Use ONLY the information from the RESEARCH DATA which came from live web searches.
     """
@@ -337,7 +351,64 @@ with tab3:
             st.markdown("#### 🪝 The Hook")
             st.info(p.get('hook_script'))
             
-            with st.expander("📜 Master Script Outline", expanded=True):
+            # FULL SCRIPT - NEW!
+            st.markdown("---")
+            st.markdown("### 🎬 Complete YouTube Script")
+            
+            full_script = p.get('full_script', {})
+            if full_script:
+                # Intro
+                with st.expander("📍 INTRO", expanded=True):
+                    st.write(full_script.get('intro', 'No intro available'))
+                
+                # Act 1
+                with st.expander("🎭 ACT 1", expanded=False):
+                    st.write(full_script.get('act1', 'No Act 1 content'))
+                
+                # Act 2
+                with st.expander("🎭 ACT 2", expanded=False):
+                    st.write(full_script.get('act2', 'No Act 2 content'))
+                
+                # Act 3
+                with st.expander("🎭 ACT 3", expanded=False):
+                    st.write(full_script.get('act3', 'No Act 3 content'))
+                
+                # Outro
+                with st.expander("🎬 OUTRO", expanded=False):
+                    st.write(full_script.get('outro', 'No outro available'))
+                
+                # Download full script as text
+                full_text = f"""# {p.get('viral_title')}
+
+## HOOK
+{p.get('hook_script')}
+
+## INTRO
+{full_script.get('intro', '')}
+
+## ACT 1
+{full_script.get('act1', '')}
+
+## ACT 2
+{full_script.get('act2', '')}
+
+## ACT 3
+{full_script.get('act3', '')}
+
+## OUTRO
+{full_script.get('outro', '')}
+"""
+                st.download_button(
+                    label="📥 Download Complete Script",
+                    data=full_text,
+                    file_name=f"{p.get('viral_title', 'script').replace(' ', '_').lower()}.txt",
+                    mime="text/plain"
+                )
+            else:
+                st.warning("Full script not generated. The model may need to be prompted differently.")
+            
+            st.markdown("---")
+            with st.expander("📜 Quick Script Outline", expanded=False):
                 for item in p.get('script_outline', []):
                     st.write(f"• {item}")
             
@@ -346,4 +417,4 @@ with tab3:
             st.write(f"**Tags:** {', '.join(p.get('seo_metadata', {}).get('tags', []))}")
 
 st.divider()
-st.caption("Script Architect Pro v1.4 | ✅ Google Search Grounding FIXED")
+st.caption("Script Architect Pro v2.0 | ✅ Web Search + Full Script Generation")
