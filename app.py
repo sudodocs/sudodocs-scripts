@@ -78,28 +78,14 @@ st.markdown("""
 # --- BACKEND LOGIC ---
 
 def call_gemini(api_key, prompt, system_instruction="", use_search=False):
-    """Universal API caller with exponential backoff and grounding."""
+    """
+    Simplified API caller matching 'app_old.py' logic.
+    Refers to internal model knowledge instead of live Google Search tools.
+    """
     genai.configure(api_key=api_key)
-    
-    tools = None
-    if use_search:
-        # CORRECT FIX: Explicitly use the NEW 'google_search' proto.
-        # This prevents the SDK from defaulting to the old 'google_search_retrieval'.
-        try:
-            tools = [
-                genai.protos.Tool(
-                    google_search=genai.protos.GoogleSearch()
-                )
-            ]
-        except AttributeError:
-            # Fallback: If the strict proto fails, try the dictionary method 
-            # which newer SDKs handle automatically.
-            tools = [{'google_search': {}}]
-
     model = genai.GenerativeModel(
         model_name='gemini-2.5-pro',
-        system_instruction=system_instruction,
-        tools=tools
+        system_instruction=system_instruction
     )
     
     # Exponential backoff: 1s, 2s, 4s, 8s, 16s
