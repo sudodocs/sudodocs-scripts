@@ -83,16 +83,21 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     
     tools = None
     if use_search:
-        # FIX: Use the explicit Proto object to prevent "Unknown field" errors
-        # This tells the SDK exactly which tool to use without guessing
-        tools = [
-            genai.protos.Tool(
-                google_search_retrieval=genai.protos.GoogleSearchRetrieval()
-            )
-        ]
-    
+        # CORRECT FIX: Explicitly use the NEW 'google_search' proto.
+        # This prevents the SDK from defaulting to the old 'google_search_retrieval'.
+        try:
+            tools = [
+                genai.protos.Tool(
+                    google_search=genai.protos.GoogleSearch()
+                )
+            ]
+        except AttributeError:
+            # Fallback: If the strict proto fails, try the dictionary method 
+            # which newer SDKs handle automatically.
+            tools = [{'google_search': {}}]
+
     model = genai.GenerativeModel(
-        model_name='gemini-2.5-flash', 
+        model_name='gemini-2.5-pro',
         system_instruction=system_instruction,
         tools=tools
     )
@@ -106,7 +111,7 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
             if delay == 16:
                 return f"Error: {str(e)}"
             time.sleep(delay)
-
+            
 def perform_grounded_research(topic, mode, source_type, api_key):
     """Fetches factual context and real-world parallels using grounding."""
     if mode == "Film & Series Analysis":
