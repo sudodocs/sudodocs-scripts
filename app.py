@@ -6,6 +6,7 @@ import asyncio
 import edge_tts
 import tempfile
 import requests
+import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -91,7 +92,7 @@ async def text_to_speech_edge(text, voice):
         await communicate.save(tmp_file.name)
         return tmp_file.name
 
-def generate_audio_sync(text, voice="en-US-ChristopherNeural"):
+def generate_audio_sync(text, voice):
     """
     Wrapper to run the async Edge-TTS function in Streamlit.
     """
@@ -457,6 +458,13 @@ with tab3:
                             
                             if audio_file_path:
                                 st.audio(audio_file_path, format='audio/mp3')
+                                with open(audio_file_path, "rb") as file:
+                                    btn = st.download_button(
+                                        label="📥 Download Audio",
+                                        data=file,
+                                        file_name=f"{p.get('viral_title', 'audio').replace(' ', '_').lower()}.mp3",
+                                        mime="audio/mp3"
+                                    )
                                 st.success("Audio generated successfully! (Hosted by Microsoft Edge Servers)")
                             else:
                                 st.error("Failed to generate audio. Please try again.")
