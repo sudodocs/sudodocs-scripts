@@ -2,6 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 import json
 import time
+import asyncio
+import edge_tts
+import tempfile
+import requests
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -75,20 +79,41 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- BACKEND LOGIC ---
+# --- AUDIO LOGIC (EDGE-TTS) ---
 
-import requests
+async def text_to_speech_edge(text, voice):
+    """
+    Generates high-quality neural voice audio using Edge-TTS.
+    """
+    communicate = edge_tts.Communicate(text, voice)
+    # Create a temporary file to store the audio
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+        await communicate.save(tmp_file.name)
+        return tmp_file.name
+
+def generate_audio_sync(text, voice="en-US-ChristopherNeural"):
+    """
+    Wrapper to run the async Edge-TTS function in Streamlit.
+    """
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(text_to_speech_edge(text, voice))
+    except Exception as e:
+        st.error(f"Audio Generation Error: {e}")
+        return None
+
+# --- BACKEND LOGIC (GEMINI 2.5 FLASH) ---
 
 def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     """
-    ✅ FIXED: Now properly enables Google Search grounding when use_search=True
-    Uses REST API for better grounding support
+    Updated to use Gemini 2.5 Flash for both SDK and REST API calls.
     """
     if not use_search:
         # Use SDK for non-search queries
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash',
+            model_name='gemini-2.5-flash', # Updated to match your screenshot
             system_instruction=system_instruction,
         )
         for delay in [1, 2, 4, 8, 16]:
@@ -101,6 +126,7 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 time.sleep(delay)
     else:
         # Use REST API with grounding for search queries
+        # Updated URL to use gemini-2.5-flash
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         
         headers = {'Content-Type': 'application/json'}
@@ -113,7 +139,12 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 "parts": [{"text": system_instruction}]
             },
             "tools": [{
-                "googleSearch": {}
+                "google_search_retrieval": {
+                    "dynamic_retrieval_config": {
+                        "mode": "dynamic_retrieval_config_mode_unspecified",
+                        "dynamic_threshold": 0.3,
+                    }
+                }
             }]
         }
         
@@ -243,6 +274,17 @@ with st.sidebar:
         source_type = st.radio("Source Material", ["Original", "Book", "Comic", "True Event", "Remake"])
     
     st.divider()
+    # Voice selection
+    st.header("🎙️ Voice Settings")
+    voice_option = st.selectbox("Select Narrator", [
+        ("en-US-ChristopherNeural", "Christopher (Male - Deep/Professional)"),
+        ("en-US-EricNeural", "Eric (Male - Casual)"),
+        ("en-US-AriaNeural", "Aria (Female - Clear)"),
+        ("en-US-JennyNeural", "Jenny (Female - Soft)"),
+        ("en-GB-RyanNeural", "Ryan (British Male)")
+    ], format_func=lambda x: x[1])
+    
+    st.divider()
     if st.button("Reset All Steps"):
         st.session_state.clear()
         st.rerun()
@@ -351,59 +393,74 @@ with tab3:
             st.markdown("#### 🪝 The Hook")
             st.info(p.get('hook_script'))
             
-            # FULL SCRIPT - NEW!
+            # FULL SCRIPT
             st.markdown("---")
             st.markdown("### 🎬 Complete YouTube Script")
             
             full_script = p.get('full_script', {})
+            full_script_text = ""
+            
             if full_script:
+                full_script_text += f"{p.get('hook_script')}\n\n"
+                
                 # Intro
                 with st.expander("📍 INTRO", expanded=True):
-                    st.write(full_script.get('intro', 'No intro available'))
+                    text = full_script.get('intro', 'No intro available')
+                    st.write(text)
+                    full_script_text += f"{text}\n\n"
                 
                 # Act 1
                 with st.expander("🎭 ACT 1", expanded=False):
-                    st.write(full_script.get('act1', 'No Act 1 content'))
-                
+                    text = full_script.get('act1', 'No Act 1 content')
+                    st.write(text)
+                    full_script_text += f"{text}\n\n"
+
                 # Act 2
                 with st.expander("🎭 ACT 2", expanded=False):
-                    st.write(full_script.get('act2', 'No Act 2 content'))
+                    text = full_script.get('act2', 'No Act 2 content')
+                    st.write(text)
+                    full_script_text += f"{text}\n\n"
                 
                 # Act 3
                 with st.expander("🎭 ACT 3", expanded=False):
-                    st.write(full_script.get('act3', 'No Act 3 content'))
+                    text = full_script.get('act3', 'No Act 3 content')
+                    st.write(text)
+                    full_script_text += f"{text}\n\n"
                 
                 # Outro
                 with st.expander("🎬 OUTRO", expanded=False):
-                    st.write(full_script.get('outro', 'No outro available'))
+                    text = full_script.get('outro', 'No outro available')
+                    st.write(text)
+                    full_script_text += f"{text}\n\n"
                 
                 # Download full script as text
-                full_text = f"""# {p.get('viral_title')}
-
-## HOOK
-{p.get('hook_script')}
-
-## INTRO
-{full_script.get('intro', '')}
-
-## ACT 1
-{full_script.get('act1', '')}
-
-## ACT 2
-{full_script.get('act2', '')}
-
-## ACT 3
-{full_script.get('act3', '')}
-
-## OUTRO
-{full_script.get('outro', '')}
-"""
                 st.download_button(
                     label="📥 Download Complete Script",
-                    data=full_text,
+                    data=full_script_text,
                     file_name=f"{p.get('viral_title', 'script').replace(' ', '_').lower()}.txt",
                     mime="text/plain"
                 )
+                
+                # --- AUDIO GENERATION SECTION ---
+                st.markdown("---")
+                st.subheader("🎙️ AI Voiceover Studio")
+                st.caption("Generate a professional narration using Edge-TTS (Neural Voice).")
+                
+                if st.button("🔊 Generate Audio for Script"):
+                    if not full_script_text.strip():
+                        st.error("Script is empty.")
+                    else:
+                        with st.spinner("Synthesizing audio (this may take 10-20 seconds)..."):
+                            # Get voice from sidebar selection
+                            selected_voice = voice_option[0] 
+                            audio_file_path = generate_audio_sync(full_script_text, selected_voice)
+                            
+                            if audio_file_path:
+                                st.audio(audio_file_path, format='audio/mp3')
+                                st.success("Audio generated successfully! (Hosted by Microsoft Edge Servers)")
+                            else:
+                                st.error("Failed to generate audio. Please try again.")
+
             else:
                 st.warning("Full script not generated. The model may need to be prompted differently.")
             
@@ -417,4 +474,4 @@ with tab3:
             st.write(f"**Tags:** {', '.join(p.get('seo_metadata', {}).get('tags', []))}")
 
 st.divider()
-st.caption("Script Architect Pro v2.0 | ✅ Web Search + Full Script Generation")
+st.caption("Script Architect Pro v2.2 | ✅ Gemini 2.5 Flash + Neural Voice")
