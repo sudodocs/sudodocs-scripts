@@ -7,9 +7,8 @@ import edge_tts
 import tempfile
 import requests
 import os
+import urllib.parse
 import re
-from PIL import Image, ImageDraw, ImageFont
-import io
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -83,66 +82,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- IMAGE PROCESSING LOGIC (PILLOW) ---
-def create_thumbnail_with_overlay(image_url, overlay_text):
-    """Downloads a base image, applies a transparency layer, and adds colored text."""
-    width, height = 1280, 720
-    base_image = None
-    
-    # Try to fetch the image from the URL
-    if image_url and image_url.startswith('http'):
-        try:
-            headers = {"User-Agent": "Mozilla/5.0"}
-            response = requests.get(image_url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                img_data = io.BytesIO(response.content)
-                base_image = Image.open(img_data).convert("RGBA")
-                # Resize and crop to 1280x720
-                base_image = base_image.resize((width, height), Image.Resampling.LANCZOS)
-        except Exception as e:
-            st.warning(f"Could not load the web image ({e}). Generating a fallback background.")
-
-    # Fallback to a sleek dark background if no image is found
-    if base_image is None:
-        base_image = Image.new('RGBA', (width, height), color=(20, 30, 48, 255))
-        
-    # Create the dark transparent overlay (RGBA: Black with 60% opacity)
-    overlay = Image.new('RGBA', base_image.size, (0, 0, 0, 150))
-    final_image = Image.alpha_composite(base_image, overlay)
-    
-    # Initialize drawing context
-    draw = ImageDraw.Draw(final_image)
-    
-    # Try to download a bold, professional font (Roboto Bold)
-    font_size = 85
-    try:
-        font_url = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf"
-        font_response = requests.get(font_url)
-        font_bytes = io.BytesIO(font_response.content)
-        font = ImageFont.truetype(font_bytes, font_size)
-    except:
-        font = ImageFont.load_default() # Fallback if download fails
-        
-    # Calculate text position (Centered)
-    # Using textbbox instead of textsize (which is deprecated in newer PIL versions)
-    try:
-        bbox = draw.textbbox((0, 0), overlay_text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-    except AttributeError:
-        # Extreme fallback for very old Pillow versions
-        text_width, text_height = draw.textsize(overlay_text, font=font)
-
-    x = (width - text_width) / 2
-    y = (height - text_height) / 2
-    
-    # Add a slight drop shadow for the text
-    draw.text((x+4, y+4), overlay_text, font=font, fill=(0, 0, 0, 255))
-    # Draw the main text (Yellow/White)
-    draw.text((x, y), overlay_text, font=font, fill=(255, 215, 0, 255)) # Gold color
-
-    return final_image.convert("RGB") # Convert back to RGB for saving as JPG
-
 # --- AUDIO LOGIC (EDGE-TTS) ---
 
 async def text_to_speech_edge(text, voice):
@@ -209,39 +148,27 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False, is_jso
                     return f"Error: {str(e)}"
                 time.sleep(delay)
             
-def perform_grounded_research(topic, mode, source_type, api_key):
-    # Added instructions for fetching a legal featured image
-    base_prompt = (
-        "5. FEATURED IMAGE: Find exactly ONE direct image URL (preferably from Wikipedia/Wikimedia Commons or a public domain source) "
-        "that represents this topic. The URL MUST end in .jpg or .png. If you cannot find a direct link, state 'None'.\n"
-        "Gather factual context so I can verify gaps in my script later. Cite sources with URLs."
-    )
+def perform_grounded_research(topic, mode, source_type, angle, length, api_key):
+    """Executes targeted research based on the user's angle and parameters."""
+    system_instruction = "You are an expert Research Assistant. Always search the web for current, accurate information. Your goal is to fact-check and find data that supports the Creator's Angle."
     
-    if mode == "Film & Series Analysis":
-        prompt = (
-            f"Search the web for the most current and accurate information about '{topic}' (Original Material: {source_type}).\n"
-            "1. RELEASE INFO: When did this air/release? What is the actual release date and status?\n"
-            "2. CHARACTER & CAST: List the ACTUAL cast and characters.\n"
-            "3. DATA: Get IMDb rating, number of episodes/runtime, and critic consensus.\n"
-            + base_prompt
-        )
-    elif mode == "Tech News & Investigative":
-        prompt = (
-            f"Search the web for the latest information on '{topic}'.\n"
-            "1. IMPACT: Current affected user stats and severity level.\n"
-            "2. TIMELINE: When did this occur and what's the current status?\n"
-            + base_prompt
-        )
-    else: 
-        prompt = (
-            f"Search for current 2026 information about '{topic}'.\n"
-            "1. ARCHITECTURE: Best practices and design patterns being used today.\n"
-            "2. TRENDS: Latest industry standards, framework versions, and adoption rates.\n"
-            + base_prompt
-        )
-    return call_gemini(api_key, prompt, "You are a factual Research Assistant. Always search the web for current, accurate information.", use_search=True)
+    prompt = f"""
+    TOPIC: {topic}
+    SOURCE TYPE: {source_type}
+    VIDEO LENGTH: {length}
+    CREATOR'S ANGLE / DRAFT: {angle}
+    
+    TASK: Execute targeted web searches to gather factual context that specifically supports, verifies, or fills the gaps in the "CREATOR'S ANGLE". 
+    
+    INSTRUCTIONS:
+    1. Do not just summarize the topic. Actively look for data, recent news, or historical parallels that make the Creator's Angle stronger.
+    2. If the Creator's Angle is missing specific facts (like exact dates, character names, technology versions, or company statements), find them.
+    3. If the Video Length is "Deep Dive (10+ mins)", gather extensive details and multiple perspectives.
+    4. Provide your findings as a factual briefing. Cite your sources with URLs.
+    """
+    return call_gemini(api_key, prompt, system_instruction, use_search=True)
 
-def generate_script_package(mode, topic, research, notes, matrix, source_type, api_key):
+def generate_script_package(mode, topic, research, angle, matrix, source_type, length, api_key):
     personas = {
         "Film & Series Analysis": "Master YouTube Film Critic. Focus on narrative, character arcs, and thematic depth.",
         "Tech News & Investigative": "Investigative Tech YouTuber. Focus on clarity, impact, and engaging storytelling.",
@@ -251,16 +178,19 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     prompt = f"""
     TOPIC: {topic}
     SOURCE TYPE: {source_type}
-    CREATOR'S DRAFT / UNIQUE ANGLE: {notes}
-    SELECTED MATRIX: {matrix}
-    BACKGROUND RESEARCH: {research}
+    VIDEO LENGTH: {length}
+    CREATOR'S DRAFT / UNIQUE ANGLE: {angle}
+    SELECTED MATRIX (Tone/Style): {matrix}
+    TARGETED RESEARCH: {research}
     
     TASK: You are a professional, conversational YouTube scriptwriter. Your goal is to refine the "CREATOR'S DRAFT" into a highly engaging, human-sounding script ready for voiceover.
     
     CRITICAL INSTRUCTIONS:
-    1. HUMAN TONE: The script MUST sound like a real person talking to a camera. Use conversational phrasing, rhetorical questions, and natural transitions. AVOID robotic listicles, stiff academic phrasing, or generic AI structures.
-    2. ANGLE-FIRST REFINEMENT: Your primary job is to expand and polish the text provided in the "CREATOR'S DRAFT". Preserve the creator's unique perspective and voice.
-    3. STRATEGIC GAP-FILLING: Look at the "BACKGROUND RESEARCH". ONLY pull facts from this research to fill in missing details or to factually support the points the creator made in their draft. Do NOT dump all the research into the script. If a research point doesn't serve the creator's angle, completely ignore it.
+    1. LENGTH ADAPTATION: The target video length is '{length}'. 
+       - If it is a YouTube Short, make the script extremely punchy, fast-paced, and under 150 words total.
+       - If it is Mid-length or Deep Dive, flesh out the arguments with natural pacing.
+    2. HUMAN TONE: The script MUST sound like a real person talking to a camera. Use conversational phrasing, rhetorical questions, and natural transitions. AVOID robotic listicles.
+    3. ANGLE-FIRST REFINEMENT: Preserve the creator's unique perspective. Only use the "TARGETED RESEARCH" to factually support their points. Do NOT dump all the research into the script.
     4. ALIGNMENT: Match the tone indicated in the "SELECTED MATRIX".
     5. ESCAPE CHARACTERS: Ensure ALL double quotes inside your script text are properly escaped (e.g., \\"Like this\\") so the JSON remains completely valid.
     
@@ -273,9 +203,9 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
       "hook_script": "String (A punchy, conversational opening hook)",
       "full_script": {{ 
           "intro": "Conversational intro flowing from the hook.",
-          "act1": "Conversational Act 1 (Refining the creator's angle).",
-          "act2": "Conversational Act 2 (Adding factual support to the angle).",
-          "act3": "Conversational Act 3 (Climax of the analysis).",
+          "act1": "Conversational Act 1.",
+          "act2": "Conversational Act 2.",
+          "act3": "Conversational Act 3.",
           "outro": "Natural conclusion and call-to-action."
       }},
       "script_outline": ["Brief point 1", "Brief point 2", "Brief point 3"],
@@ -290,16 +220,12 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     except Exception as e:
         return {"error": f"Synthesis failed to return valid JSON. Error: {str(e)}", "raw": result}
 
-def generate_youtube_bundle(api_key, script_text, background_research):
-    """Generates the YouTube metadata and extracts image/text for the thumbnail."""
+def generate_youtube_bundle(api_key, script_text):
     prompt = f"""
-    Analyze the following YouTube script and background research to create a complete SEO and packaging bundle.
+    Analyze the following YouTube script and create a complete SEO and packaging bundle.
     
     SCRIPT:
     {script_text}
-    
-    RESEARCH DATA (Find the image link here):
-    {background_research}
     
     JSON SCHEMA REQUIREMENTS:
     {{
@@ -307,8 +233,7 @@ def generate_youtube_bundle(api_key, script_text, background_research):
         "description": "String (A full YouTube description including a hook, summary, and placeholder for social links)",
         "tags": ["tag1", "tag2", "tag3", "etc (Generate 15 highly relevant SEO tags)"],
         "hashtags": ["#tag1", "#tag2", "#tag3 (Generate 3-5 highly relevant hashtags)"],
-        "base_image_url": "String (Extract the direct .jpg or .png URL from the RESEARCH DATA. If none exists, output empty string.)",
-        "thumbnail_text": "String (Short, punchy, uppercase text to overlay on the thumbnail, max 4 words. E.g., 'THE MATRIX REVIEW' or 'RUST CRASH COURSE')"
+        "thumbnail_prompt": "String (A highly detailed, visual prompt for an AI image generator to create a catchy, high-contrast, professional YouTube thumbnail. Specify lighting, subjects, and mood.)"
     }}
     """
     result = call_gemini(api_key, prompt, "You are a master YouTube strategist and SEO expert.", is_json=True)
@@ -339,53 +264,37 @@ with st.sidebar:
 
 # --- 5 LINEAR WORKFLOW TABS ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "1. Research", 
-    "2. Analysis", 
-    "3. Script", 
+    "1. Parameters", 
+    "2. Ground Research", 
+    "3. Generated Script", 
     "4. Voiceover",
     "5. Content Bundle"
 ])
 
-# --- TAB 1: RESEARCH ---
+# --- TAB 1: PARAMETERS ---
 with tab1:
-    st.subheader("Step 1: Intelligence Gathering")
-    st.info("🌐 Gather background facts and legal featured images to act as a safety net for your script.")
+    st.subheader("Step 1: Set Project Parameters & Angle")
+    st.info("Define the scope, tone, and your unique perspective before the AI conducts its research.")
     
+    # 1. Topic
     topic = st.text_input("Topic or Title", placeholder="e.g., The Night Manager Season 2, Crowdstrike Outage")
     
-    current_mode = st.session_state.get("active_mode_key", "Film & Series Analysis")
-    current_source = st.session_state.get("source_type_key", "Original")
-    
-    if st.button("🔍 Execute Background Research"):
-        if not api_key: 
-            st.warning("Please provide an API Key in the sidebar.")
-        elif not topic: 
-            st.warning("Please provide a topic.")
-        else:
-            with st.spinner("🌐 Gathering facts and legal images from the web..."):
-                st.session_state['research'] = perform_grounded_research(topic, current_mode, current_source, api_key)
-                st.session_state['topic'] = topic
-
-    if 'research' in st.session_state:
-        st.success("✅ Background Research Complete")
-        with st.expander("View Factual Briefing", expanded=False):
-            st.markdown(st.session_state['research'])
-        st.success("🎉 **Step 1 Complete!** Please click the **'2. Analysis Matrix'** tab above to add your unique angle.")
-
-# --- TAB 2: MATRIX ---
-with tab2:
-    st.subheader("Step 2: Core Concept & Tuning")
-    
-    active_mode = st.selectbox("Content Mode", 
-                               ["Film & Series Analysis", "Tech News & Investigative", "Educational Technology"],
-                               key="active_mode_key")
+    # 2. Base Configuration
+    col_a, col_b = st.columns(2)
+    with col_a:
+        active_mode = st.selectbox("Content Mode", ["Film & Series Analysis", "Tech News & Investigative", "Educational Technology"])
+    with col_b:
+        video_length = st.selectbox("Target Video Length", [
+            "YouTube Short (< 1 minute)", 
+            "Mid-length (3-8 mins)", 
+            "Deep Dive (10+ mins)"
+        ])
     
     source_type = "Original"
     if active_mode == "Film & Series Analysis":
-        source_type = st.radio("Source Material", 
-                               ["Original", "Book", "Comic", "True Event", "Remake"],
-                               key="source_type_key")
+        source_type = st.radio("Source Material", ["Original", "Book", "Comic", "True Event", "Remake"], horizontal=True)
         
+    # 3. Tuning Matrix
     st.markdown('<div class="report-card">', unsafe_allow_html=True)
     matrix_data = {}
     if active_mode == "Film & Series Analysis":
@@ -404,76 +313,123 @@ with tab2:
         matrix_data['Method'] = st.select_slider("Pedagogical Style", ["Theory", "Mixed", "Practical"])
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 4. Unique Angle
     st.markdown("### ✍️ Your Unique Angle (Draft)")
-    st.info("The AI will focus on refining YOUR draft into a conversational script. It will only use the research from Step 1 to fill in factual gaps.")
+    st.caption("Upload your notes or type your perspective here. The AI will use this to guide its research in Step 2.")
     
     angle_file = st.file_uploader("Upload your rough draft or notes (.txt)", type=["txt"])
     angle_text = st.text_area("Or type your angle/rough draft here:", height=150, placeholder="E.g., I think the main character's arc was ruined in episode 4 because...")
     
-    if st.button("🚀 Architect Refined Script"):
-        if 'research' not in st.session_state: 
-            st.error("Please run Step 1 (Research) first to gather background facts.")
+    if st.button("💾 Save Parameters & Proceed"):
+        final_angle = ""
+        if angle_text.strip():
+            final_angle = angle_text
+        elif angle_file is not None:
+            final_angle = angle_file.getvalue().decode("utf-8")
+            
+        if not topic:
+            st.error("⚠️ Please provide a Topic or Title.")
+        elif not final_angle:
+            st.error("⚠️ Please provide your Unique Angle (either type it or upload a text file) to guide the research.")
         else:
-            final_angle = ""
-            if angle_text.strip():
-                final_angle = angle_text
-            elif angle_file is not None:
-                final_angle = angle_file.getvalue().decode("utf-8")
-                
-            if not final_angle:
-                st.error("⚠️ Please provide your Unique Angle (either type it or upload a text file) so the AI has a foundation to refine.")
+            # Save everything to session state
+            st.session_state['topic_param'] = topic
+            st.session_state['mode_param'] = active_mode
+            st.session_state['length_param'] = video_length
+            st.session_state['source_param'] = source_type
+            st.session_state['matrix_param'] = str(matrix_data)
+            st.session_state['angle_param'] = final_angle
+            
+            st.success("✅ Parameters saved! Please click the **'2. Ground Research'** tab above to fetch supporting data.")
+
+# --- TAB 2: GROUND RESEARCH ---
+with tab2:
+    st.subheader("Step 2: Targeted Intelligence Gathering")
+    
+    if 'topic_param' not in st.session_state:
+        st.info("Please complete Step 1 (Parameters) first and click 'Save Parameters'.")
+    else:
+        st.info(f"🌐 The AI will now search the web to fact-check and find data specifically supporting your angle on **{st.session_state['topic_param']}**.")
+        
+        if st.button("🔍 Execute Targeted Background Research"):
+            if not api_key: 
+                st.warning("Please provide an API Key in the sidebar.")
             else:
-                topic = st.session_state.get('topic', 'Unknown Topic')
-                with st.spinner("Synthesizing and refining your conversational script..."):
-                    st.session_state['package'] = generate_script_package(
-                        active_mode, topic, st.session_state['research'], final_angle, str(matrix_data), source_type, api_key
+                with st.spinner("🌐 Actively searching the web to verify and expand your angle..."):
+                    st.session_state['research'] = perform_grounded_research(
+                        topic=st.session_state['topic_param'],
+                        mode=st.session_state['mode_param'],
+                        source_type=st.session_state['source_param'],
+                        angle=st.session_state['angle_param'],
+                        length=st.session_state['length_param'],
+                        api_key=api_key
                     )
-                    st.success("🎉 **Step 2 Complete!** Your script has been refined. Please click the **'3. Script'** tab.")
+
+        if 'research' in st.session_state:
+            st.success("✅ Targeted Research Complete")
+            with st.expander("View Factual Briefing (What the AI found to support you)", expanded=False):
+                st.markdown(st.session_state['research'])
+            st.success("🎉 **Step 2 Complete!** Please click the **'3. Generated Script'** tab above to architect your final script.")
 
 # --- TAB 3: GENERATED SCRIPT ---
 with tab3:
-    st.subheader("Step 3: Script Review & Editing")
-    if 'package' not in st.session_state:
-        st.info("Complete Step 2 to generate the final script suite.")
+    st.subheader("Step 3: Script Generation & Editing")
+    
+    if 'research' not in st.session_state:
+        st.info("Complete Step 2 (Ground Research) to generate the final script suite.")
     else:
-        p = st.session_state['package']
-        if "error" in p: 
-            st.error(p['error'])
-            with st.expander("View Raw Output (For Debugging)"): st.text(p.get('raw'))
-        else:
-            st.success(f"### {p.get('viral_title')}")
-            
-            with st.expander("📊 View Script Architecture Details", expanded=False):
-                st.markdown("#### 🌍 Thematic Resonance")
-                st.warning(f"**Analogous Event:** {p.get('thematic_resonance', {}).get('real_world_event')}")
-                st.write(p.get('thematic_resonance', {}).get('explanation'))
+        if st.button("🚀 Architect Refined Script"):
+            with st.spinner(f"Synthesizing your script tailored for a {st.session_state['length_param']}..."):
+                st.session_state['package'] = generate_script_package(
+                    mode=st.session_state['mode_param'],
+                    topic=st.session_state['topic_param'],
+                    research=st.session_state['research'],
+                    angle=st.session_state['angle_param'],
+                    matrix=st.session_state['matrix_param'],
+                    source_type=st.session_state['source_param'],
+                    length=st.session_state['length_param'],
+                    api_key=api_key
+                )
                 
-                if active_mode == "Film & Series Analysis":
-                    for char in p.get('character_matrix', []):
-                        st.markdown(f"**{char['name']}** <span class='metric-badge'>{char['arc_score']}/10</span>", unsafe_allow_html=True)
+        if 'package' in st.session_state:
+            p = st.session_state['package']
+            if "error" in p: 
+                st.error(p['error'])
+                with st.expander("View Raw Output (For Debugging)"): st.text(p.get('raw'))
+            else:
+                st.success(f"### {p.get('viral_title')}")
+                
+                with st.expander("📊 View Script Architecture Details", expanded=False):
+                    st.markdown("#### 🌍 Thematic Resonance")
+                    st.warning(f"**Analogous Event:** {p.get('thematic_resonance', {}).get('real_world_event')}")
+                    st.write(p.get('thematic_resonance', {}).get('explanation'))
+                    
+                    if st.session_state['mode_param'] == "Film & Series Analysis":
+                        for char in p.get('character_matrix', []):
+                            st.markdown(f"**{char['name']}** <span class='metric-badge'>{char['arc_score']}/10</span>", unsafe_allow_html=True)
 
-            st.markdown("### 📝 Conversational Script Editor")
-            st.info("💡 Edit the text below exactly as you want it spoken. Add commas or dashes (---) to force natural pauses for the voiceover. Your edits are automatically saved.")
-            
-            full_script = p.get('full_script', {})
-            
-            default_script_text = f"{p.get('hook_script', '')}\n\n"
-            default_script_text += f"{full_script.get('intro', '')}\n\n"
-            default_script_text += f"{full_script.get('act1', '')}\n\n"
-            default_script_text += f"{full_script.get('act2', '')}\n\n"
-            default_script_text += f"{full_script.get('act3', '')}\n\n"
-            default_script_text += f"{full_script.get('outro', '')}"
-            
-            st.session_state['final_script_text'] = st.text_area("Final Polish:", value=default_script_text.strip(), height=400)
-            
-            st.download_button(
-                label="📥 Download Text Script",
-                data=st.session_state['final_script_text'],
-                file_name=f"{p.get('viral_title', 'script').replace(' ', '_').lower()}.txt",
-                mime="text/plain"
-            )
-            
-            st.success("🎉 **Step 3 Complete!** Once you are happy with the pacing, click the **'4. Voiceover'** tab.")
+                st.markdown("### 📝 Conversational Script Editor")
+                st.info("💡 Edit the text below exactly as you want it spoken. Add commas or dashes (---) to force natural pauses for the voiceover. Your edits are automatically saved.")
+                
+                full_script = p.get('full_script', {})
+                
+                default_script_text = f"{p.get('hook_script', '')}\n\n"
+                default_script_text += f"{full_script.get('intro', '')}\n\n"
+                default_script_text += f"{full_script.get('act1', '')}\n\n"
+                default_script_text += f"{full_script.get('act2', '')}\n\n"
+                default_script_text += f"{full_script.get('act3', '')}\n\n"
+                default_script_text += f"{full_script.get('outro', '')}"
+                
+                st.session_state['final_script_text'] = st.text_area("Final Polish:", value=default_script_text.strip(), height=400)
+                
+                st.download_button(
+                    label="📥 Download Text Script",
+                    data=st.session_state['final_script_text'],
+                    file_name=f"{p.get('viral_title', 'script').replace(' ', '_').lower()}.txt",
+                    mime="text/plain"
+                )
+                
+                st.success("🎉 **Step 3 Complete!** Once you are happy with the pacing, click the **'4. Voiceover'** tab.")
 
 # --- TAB 4: GENERATE VOICEOVER ---
 with tab4:
@@ -539,12 +495,12 @@ with tab4:
                 else:
                     st.error("Failed to generate audio. Please check your internet connection and try again.")
             
-            st.success("🎉 **Step 4 Complete!** Ready to finalize? Click the **'5. Content Bundle'** tab to generate your SEO metadata and thumbnail.")
+            st.success("🎉 **Step 4 Complete!** Ready to finalize? Click the **'5. Content Bundle'** tab to generate your SEO metadata and thumbnail prompt.")
 
 # --- TAB 5: CONTENT BUNDLE ---
 with tab5:
     st.subheader("Step 5: YouTube Content Bundle")
-    st.info("Package your final script with a viral title, SEO description, tags, and a dynamically generated text-overlay thumbnail.")
+    st.info("Package your final script with a viral title, SEO description, tags, and a thumbnail concept.")
     
     bundle_source_choice = st.radio("Select the script text to use as the foundation for your bundle:", 
                                     ["Use 'Generated Script' (from Tab 3)", "Use 'Final Audio Text' (from Tab 4)"])
@@ -556,15 +512,13 @@ with tab5:
         else:
             target_text = st.session_state.get('tab4_audio_text', '')
             
-        research_data = st.session_state.get('research', '')
-            
         if not api_key:
             st.error("⚠️ API Key required. Please add it to the sidebar.")
         elif not target_text.strip():
             st.error("⚠️ Target text is empty. Please ensure you have generated or uploaded a script in the previous tabs.")
         else:
-            with st.spinner("Analyzing script and extracting the base image..."):
-                st.session_state['yt_bundle'] = generate_youtube_bundle(api_key, target_text, research_data)
+            with st.spinner("Analyzing script and generating YouTube metadata..."):
+                st.session_state['yt_bundle'] = generate_youtube_bundle(api_key, target_text)
                 
     if 'yt_bundle' in st.session_state:
         bundle = st.session_state['yt_bundle']
@@ -584,37 +538,12 @@ with tab5:
             with col_hashes:
                 st.text_area("**Hashtags**", value=" ".join(bundle.get('hashtags', [])), height=100)
             
-            # Text-Overlay Thumbnail Section
+            # Thumbnail Prompt Idea Section
             st.markdown("---")
-            st.markdown("### 🎨 Thumbnail Generator")
-            st.caption("We found a legal base image from your research and crafted the overlay text below.")
+            st.markdown("### 🎨 AI Thumbnail Prompt")
+            st.caption("Copy this visual prompt into your favorite AI image generator (like Midjourney, DALL-E, or Canva) to create a high-quality YouTube thumbnail.")
             
-            base_img = bundle.get('base_image_url', '')
-            st.text_input("Base Image URL:", value=base_img)
-            
-            overlay_text = bundle.get('thumbnail_text', 'REVIEW')
-            overlay_text = st.text_input("Thumbnail Overlay Text (Editable):", value=overlay_text)
-            
-            if st.button("🖼️ Generate Overlay Thumbnail"):
-                with st.spinner("Compositing image, applying transparency, and adding text..."):
-                    try:
-                        final_thumb = create_thumbnail_with_overlay(base_img, overlay_text)
-                        
-                        st.image(final_thumb, caption="Final Rendered Thumbnail", use_container_width=True)
-                        
-                        # Prepare for download
-                        buf = io.BytesIO()
-                        final_thumb.save(buf, format="JPEG", quality=95)
-                        byte_im = buf.getvalue()
-                        
-                        st.download_button(
-                            label="📥 Download Thumbnail (.jpg)",
-                            data=byte_im,
-                            file_name="youtube_overlay_thumbnail.jpg",
-                            mime="image/jpeg"
-                        )
-                    except Exception as e:
-                        st.error(f"Failed to generate thumbnail composite: {e}")
+            st.text_area("Suggested Image Prompt:", value=bundle.get('thumbnail_prompt', ''), height=100)
 
 st.divider()
-st.caption("Script Architect Pro v5.0 | Complete Suite with Python Image Compositing")
+st.caption("Script Architect Pro v6.0 | Parameter-Driven Research Architecture")
