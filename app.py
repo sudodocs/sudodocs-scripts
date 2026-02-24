@@ -106,9 +106,6 @@ def generate_audio_sync(text, voice):
 # --- BACKEND LOGIC (GEMINI 2.5 FLASH) ---
 
 def call_gemini(api_key, prompt, system_instruction="", use_search=False):
-    """
-    Uses Gemini 2.5 Flash. Includes corrected payload for Google Search grounding.
-    """
     if not use_search:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
@@ -126,7 +123,6 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     else:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         headers = {'Content-Type': 'application/json'}
-        # Correctly formatted payload for Gemini 2.5 Search Grounding
         data = {
             "contents": [{"parts": [{"text": prompt}]}],
             "systemInstruction": {"parts": [{"text": system_instruction}]},
@@ -154,75 +150,69 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 time.sleep(delay)
             
 def perform_grounded_research(topic, mode, source_type, api_key):
-    """Fetches factual context and real-world parallels using grounding."""
     if mode == "Film & Series Analysis":
         prompt = (
             f"Search the web for the most current and accurate information about '{topic}' (Original Material: {source_type}). "
-            "IMPORTANT: Use real-time search results from IMDb, Rotten Tomatoes, and recent news articles. "
             "1. RELEASE INFO: When did this air/release? What is the actual release date and status? "
-            "2. ADAPTATION: Identify fidelity vs creative liberties from the source material. "
-            "3. CHARACTER: List the ACTUAL cast and characters from the show/film. For main characters, identify their 'Ghost' (trauma), 'Lie' (belief), and 'Truth' (need). "
-            "4. REAL-WORLD: Find current news or historical events mirroring the core themes. "
-            "5. DATA: Get IMDb rating, number of episodes/runtime, and critic consensus from review aggregators. "
-            "Cite your sources with URLs."
+            "2. CHARACTER & CAST: List the ACTUAL cast and characters. "
+            "3. DATA: Get IMDb rating, number of episodes/runtime, and critic consensus. "
+            "Gather factual context so I can verify gaps in my script later. Cite sources with URLs."
         )
     elif mode == "Tech News & Investigative":
         prompt = (
             f"Search the web for the latest information on '{topic}'. "
             "1. IMPACT: Current affected user stats and severity level. "
-            "2. THE GAP: Company official statements vs community findings on Reddit, GitHub, or X. "
-            "3. MARKET: Recent stock fluctuations or industry-wide shifts. "
-            "4. TIMELINE: When did this occur and what's the current status? "
-            "Cite sources with URLs."
+            "2. TIMELINE: When did this occur and what's the current status? "
+            "Gather factual context to support an investigative script. Cite sources with URLs."
         )
     else: 
         prompt = (
             f"Search for current 2026 information about '{topic}'. "
-            "1. PITFALLS: Common beginner mistakes documented in recent tutorials or Stack Overflow. "
-            "2. ARCHITECTURE: Best practices and design patterns being used today. "
-            "3. TRENDS: Latest industry standards, framework versions, and adoption rates. "
-            "Cite sources with URLs."
+            "1. ARCHITECTURE: Best practices and design patterns being used today. "
+            "2. TRENDS: Latest industry standards, framework versions, and adoption rates. "
+            "Gather factual context to verify educational content. Cite sources with URLs."
         )
-    return call_gemini(api_key, prompt, "You are a factual Research Assistant. Always search the web for current, accurate information and cite your sources.", use_search=True)
+    return call_gemini(api_key, prompt, "You are a factual Research Assistant. Always search the web for current, accurate information.", use_search=True)
 
 def generate_script_package(mode, topic, research, notes, matrix, source_type, api_key):
-    """Synthesizes all inputs into the final multi-pillar script JSON."""
     personas = {
-        "Film & Series Analysis": "Master Film Scholar. Provide deep character arc metrics (CACI), Adaptation worthiness (AFW), and technical scores.",
-        "Tech News & Investigative": "Investigative Tech Journalist. Provide Root Cause Analysis (RCA) and industry impact metrics.",
-        "Educational Technology": "Senior Technical Educator. Use the Feynman Technique to simplify complex logic."
+        "Film & Series Analysis": "Master YouTube Film Critic. Focus on narrative, character arcs, and thematic depth.",
+        "Tech News & Investigative": "Investigative Tech YouTuber. Focus on clarity, impact, and engaging storytelling.",
+        "Educational Technology": "Senior Developer turned YouTuber. Explain things naturally, like a mentor talking to a junior."
     }
+    
     prompt = f"""
     TOPIC: {topic}
     SOURCE TYPE: {source_type}
-    RESEARCH DATA (Based on web search): {research}
-    CREATOR NOTES: {notes}
+    CREATOR'S DRAFT / UNIQUE ANGLE: {notes}
     SELECTED MATRIX: {matrix}
+    BACKGROUND RESEARCH: {research}
     
-    TASK: Generate a viral, high-authority YouTube package in JSON format.
+    TASK: You are a professional, conversational YouTube scriptwriter. Your goal is to refine the "CREATOR'S DRAFT" into a highly engaging, human-sounding script ready for voiceover.
+    
+    CRITICAL INSTRUCTIONS:
+    1. HUMAN TONE: The script MUST sound like a real person talking to a camera. Use conversational phrasing, rhetorical questions, and natural transitions. AVOID robotic listicles, stiff academic phrasing, or generic AI structures.
+    2. ANGLE-FIRST REFINEMENT: Your primary job is to expand and polish the text provided in the "CREATOR'S DRAFT". Preserve the creator's unique perspective and voice.
+    3. STRATEGIC GAP-FILLING: Look at the "BACKGROUND RESEARCH". ONLY pull facts from this research to fill in missing details or to factually support the points the creator made in their draft. Do NOT dump all the research into the script. If a research point doesn't serve the creator's angle, completely ignore it.
+    4. ALIGNMENT: Match the tone indicated in the "SELECTED MATRIX".
     
     JSON SCHEMA REQUIREMENTS:
-    - thematic_resonance: {{ "real_world_event": "String", "explanation": "Detailed parallel" }}
+    - thematic_resonance: {{ "real_world_event": "String", "explanation": "Detailed parallel based on angle" }}
     - character_matrix: [ {{ "name": "Name", "role": "Main/Side", "arc_score": 0-10, "ghost_vs_truth": "String" }} ]
-    - adaptation_report: {{ "fidelity_score": 0-10, "worthiness_score": 0-10, "justification": "Why liberties were/weren't worthy" }}
     - technical_report: {{ "script": 0-10, "direction": 0-10, "editing": 0-10, "acting": 0-10 }}
-    - viral_title: "String"
-    - hook_script: "String (2-3 paragraph opening hook)"
+    - viral_title: "String (Catchy YouTube Title)"
+    - hook_script: "String (A punchy, conversational opening hook)"
     - full_script: {{ 
-        "intro": "Full narration for opening (3-4 paragraphs)",
-        "act1": "Complete narration for Act 1 with specific details, quotes, and analysis (4-5 paragraphs)",
-        "act2": "Complete narration for Act 2 with character breakdowns and key moments (4-5 paragraphs)",
-        "act3": "Complete narration for Act 3 with technical analysis and conclusion (4-5 paragraphs)",
-        "outro": "Closing thoughts and call-to-action (2-3 paragraphs)"
+        "intro": "Conversational intro flowing from the hook.",
+        "act1": "Conversational Act 1 (Refining the creator's angle).",
+        "act2": "Conversational Act 2 (Adding factual support to the angle).",
+        "act3": "Conversational Act 3 (Climax of the analysis).",
+        "outro": "Natural conclusion and call-to-action."
     }}
-    - script_outline: ["Brief Act 1 summary", "Brief Act 2 summary", "Brief Act 3 summary"]
+    - script_outline: ["Brief point 1", "Brief point 2", "Brief point 3"]
     - seo_metadata: {{ "description": "String", "tags": ["tag1", "tag2"] }}
     
-    CRITICAL: The 'full_script' field must contain ACTUAL, READY-TO-READ narration for a YouTube video, not just bullet points or summaries.
-    Write it as if you're the narrator speaking directly to the audience. Use natural, engaging language with rhythm and pacing.
-    Include specific examples, quotes, and data from the research.
-    
-    Use ONLY the information from the RESEARCH DATA which came from live web searches.
+    Ensure the final 'full_script' text feels like one continuous, natural speech.
     """
     result = call_gemini(api_key, prompt, personas.get(mode))
     try:
@@ -246,13 +236,6 @@ with st.sidebar:
         st.warning("⚠️ API Key required")
     
     st.divider()
-    active_mode = st.selectbox("Content Mode", ["Film & Series Analysis", "Tech News & Investigative", "Educational Technology"])
-    
-    source_type = "Original"
-    if active_mode == "Film & Series Analysis":
-        source_type = st.radio("Source Material", ["Original", "Book", "Comic", "True Event", "Remake"])
-    
-    st.divider()
     if st.button("Reset All Steps"):
         st.session_state.clear()
         st.rerun()
@@ -263,29 +246,45 @@ tab1, tab2, tab3, tab4 = st.tabs(["1. Research & Grounding", "2. Analysis Matrix
 # --- TAB 1: RESEARCH ---
 with tab1:
     st.subheader("Step 1: Intelligence Gathering")
-    st.info("🌐 This step will search the web for real-time information from IMDb, news sites, and other authoritative sources.")
+    st.info("🌐 Gather background facts to act as a factual safety net for your script.")
     
-    topic = st.text_input("Topic or Title", placeholder="e.g., The Night Manager Season 2, Crowdstrike Outage, Rust vs C++")
+    topic = st.text_input("Topic or Title", placeholder="e.g., The Night Manager Season 2, Crowdstrike Outage")
     
-    if st.button("🔍 Execute Research"):
+    # Read active mode from session state (set in Tab 2) to inform the research prompt
+    current_mode = st.session_state.get("active_mode_key", "Film & Series Analysis")
+    current_source = st.session_state.get("source_type_key", "Original")
+    
+    if st.button("🔍 Execute Background Research"):
         if not api_key: 
             st.warning("Please provide an API Key in the sidebar.")
         elif not topic: 
             st.warning("Please provide a topic.")
         else:
-            with st.spinner("🌐 Searching the web for latest information..."):
-                st.session_state['research'] = perform_grounded_research(topic, active_mode, source_type, api_key)
+            with st.spinner("🌐 Gathering background facts from the web..."):
+                st.session_state['research'] = perform_grounded_research(topic, current_mode, current_source, api_key)
                 st.session_state['topic'] = topic
 
     if 'research' in st.session_state:
-        st.success("✅ Research Complete")
-        st.info("### Research Briefing")
-        st.markdown(st.session_state['research'])
-        st.success("🎉 **Step 1 Complete!** Please click the **'2. Analysis Matrix'** tab above to continue.")
+        st.success("✅ Background Research Complete")
+        with st.expander("View Factual Briefing", expanded=False):
+            st.markdown(st.session_state['research'])
+        st.success("🎉 **Step 1 Complete!** Please click the **'2. Analysis Matrix'** tab above to add your unique angle.")
 
 # --- TAB 2: MATRIX ---
 with tab2:
-    st.subheader("Step 2: Analysis Tuning")
+    st.subheader("Step 2: Core Concept & Tuning")
+    
+    # Moved Content Mode here
+    active_mode = st.selectbox("Content Mode", 
+                               ["Film & Series Analysis", "Tech News & Investigative", "Educational Technology"],
+                               key="active_mode_key")
+    
+    source_type = "Original"
+    if active_mode == "Film & Series Analysis":
+        source_type = st.radio("Source Material", 
+                               ["Original", "Book", "Comic", "True Event", "Remake"],
+                               key="source_type_key")
+        
     st.markdown('<div class="report-card">', unsafe_allow_html=True)
     matrix_data = {}
     if active_mode == "Film & Series Analysis":
@@ -295,7 +294,7 @@ with tab2:
             matrix_data['Visuals'] = st.select_slider("Visual Signature", ["Standard", "Stylized", "Iconic"])
         with c2:
             matrix_data['Fidelity'] = st.select_slider("Adaptation Fidelity", ["Loose", "Balanced", "Literal"])
-            matrix_data['Tone'] = st.selectbox("Narrative Tone", ["Melancholic", "Frantic", "Academic", "Urgent"])
+            matrix_data['Tone'] = st.selectbox("Narrative Tone", ["Conversational", "Melancholic", "Frantic", "Academic"])
     elif active_mode == "Tech News & Investigative":
         matrix_data['Severity'] = st.select_slider("Criticality", ["Bug", "Outage", "Crisis"])
         matrix_data['Scope'] = st.select_slider("User Impact", ["Niche", "Widespread", "Global"])
@@ -304,16 +303,33 @@ with tab2:
         matrix_data['Method'] = st.select_slider("Pedagogical Style", ["Theory", "Mixed", "Practical"])
     st.markdown('</div>', unsafe_allow_html=True)
 
-    user_notes = st.text_area("Your Unique Angle", placeholder="Add your unique observations or 'secret sauce' here...", height=150)
+    # UNIQUE ANGLE REFINEMENT
+    st.markdown("### ✍️ Your Unique Angle (Draft)")
+    st.info("The AI will focus on refining YOUR draft into a conversational script. It will only use the research from Step 1 to fill in factual gaps.")
     
-    if st.button("🚀 Architect Final Package"):
+    angle_file = st.file_uploader("Upload your rough draft or notes (.txt)", type=["txt"])
+    angle_text = st.text_area("Or type your angle/rough draft here:", height=150, placeholder="E.g., I think the main character's arc was ruined in episode 4 because...")
+    
+    if st.button("🚀 Architect Refined Script"):
         if 'research' not in st.session_state: 
-            st.error("Please run Step 1 (Research) first.")
+            st.error("Please run Step 1 (Research) first to gather background facts.")
         else:
-            topic = st.session_state.get('topic', 'Unknown Topic')
-            with st.spinner("Synthesizing script components..."):
-                st.session_state['package'] = generate_script_package(active_mode, topic, st.session_state['research'], user_notes, str(matrix_data), source_type, api_key)
-                st.success("🎉 **Step 2 Complete!** The script has been generated. Please click the **'3. Generated Script'** tab to review and edit.")
+            # Logic to handle text vs file upload
+            final_angle = ""
+            if angle_text.strip():
+                final_angle = angle_text
+            elif angle_file is not None:
+                final_angle = angle_file.getvalue().decode("utf-8")
+                
+            if not final_angle:
+                st.error("⚠️ Please provide your Unique Angle (either type it or upload a text file) so the AI has a foundation to refine.")
+            else:
+                topic = st.session_state.get('topic', 'Unknown Topic')
+                with st.spinner("Synthesizing and refining your conversational script..."):
+                    st.session_state['package'] = generate_script_package(
+                        active_mode, topic, st.session_state['research'], final_angle, str(matrix_data), source_type, api_key
+                    )
+                    st.success("🎉 **Step 2 Complete!** Your script has been refined. Please click the **'3. Generated Script'** tab.")
 
 # --- TAB 3: GENERATED SCRIPT ---
 with tab3:
@@ -328,7 +344,7 @@ with tab3:
         else:
             st.success(f"### {p.get('viral_title')}")
             
-            with st.expander("📊 View Analysis & Reports", expanded=False):
+            with st.expander("📊 View Script Architecture Details", expanded=False):
                 st.markdown("#### 🌍 Thematic Resonance")
                 st.warning(f"**Analogous Event:** {p.get('thematic_resonance', {}).get('real_world_event')}")
                 st.write(p.get('thematic_resonance', {}).get('explanation'))
@@ -336,21 +352,13 @@ with tab3:
                 if active_mode == "Film & Series Analysis":
                     for char in p.get('character_matrix', []):
                         st.markdown(f"**{char['name']}** <span class='metric-badge'>{char['arc_score']}/10</span>", unsafe_allow_html=True)
-                    st.markdown("#### 🏆 Technical Report Card")
-                    trc = p.get('technical_report', {})
-                    tc1, tc2, tc3, tc4 = st.columns(4)
-                    tc1.metric("Script", trc.get('script'))
-                    tc2.metric("Direction", trc.get('direction'))
-                    tc3.metric("Editing", trc.get('editing'))
-                    tc4.metric("Acting", trc.get('acting'))
 
             # Editable Script Section
-            st.markdown("### ✍️ Final Script Editor")
-            st.info("💡 Edit the text below exactly as you want it spoken. (e.g., Acronyms read better with dashes like A-W-S). Your edits are automatically saved for the voiceover step!")
+            st.markdown("### 📝 Conversational Script Editor")
+            st.info("💡 Edit the text below exactly as you want it spoken. Add commas or dashes (---) to force natural pauses for the voiceover. Your edits are automatically saved.")
             
             full_script = p.get('full_script', {})
             
-            # Combine script into a single editable block
             default_script_text = f"{p.get('hook_script', '')}\n\n"
             default_script_text += f"{full_script.get('intro', '')}\n\n"
             default_script_text += f"{full_script.get('act1', '')}\n\n"
@@ -358,8 +366,7 @@ with tab3:
             default_script_text += f"{full_script.get('act3', '')}\n\n"
             default_script_text += f"{full_script.get('outro', '')}"
             
-            # Save the edits to session state for Tab 4
-            st.session_state['final_script_text'] = st.text_area("Your Editable Script:", value=default_script_text.strip(), height=400)
+            st.session_state['final_script_text'] = st.text_area("Final Polish:", value=default_script_text.strip(), height=400)
             
             st.download_button(
                 label="📥 Download Text Script",
@@ -368,17 +375,15 @@ with tab3:
                 mime="text/plain"
             )
             
-            st.success("🎉 **Step 3 Complete!** Once you are happy with the text above, click the **'4. Generate Voiceover'** tab.")
+            st.success("🎉 **Step 3 Complete!** Once you are happy with the pacing, click the **'4. Generate Voiceover'** tab.")
 
 # --- TAB 4: GENERATE VOICEOVER ---
 with tab4:
     st.subheader("Step 4: AI Voiceover Studio")
     st.info("Turn your finalized script or a custom uploaded file into professional audio.")
 
-    # Voice Selection (Moved from Sidebar to here)
     st.markdown("### 🎙️ Voice Settings")
     voice_option = st.selectbox("Select Narrator (US English)", [
-        # --- MALE VOICES ---
         ("en-US-ChristopherNeural", "Christopher (Male - Deep/Professional)"),
         ("en-US-GuyNeural", "Guy (Male - Natural/Conversational)"),
         ("en-US-EricNeural", "Eric (Male - Casual)"),
@@ -386,7 +391,6 @@ with tab4:
         ("en-US-SteffanNeural", "Steffan (Male - Expressive)"),
         ("en-US-AndrewNeural", "Andrew (Male - Warm)"),
         ("en-US-BrianNeural", "Brian (Male - Crisp/News)"),
-        # --- FEMALE VOICES ---
         ("en-US-AriaNeural", "Aria (Female - Clear)"),
         ("en-US-JennyNeural", "Jenny (Female - Conversational)"),
         ("en-US-MichelleNeural", "Michelle (Female - Bright)"),
@@ -405,15 +409,13 @@ with tab4:
         if not text_to_synthesize:
             st.warning("⚠️ No generated script found. Please complete Steps 1-3 first, or select 'Upload Custom Text File'.")
     else:
-        uploaded_file = st.file_uploader("Upload a .txt file", type=["txt"])
+        uploaded_file = st.file_uploader("Upload a .txt file for Voiceover", type=["txt"], key="voice_upload")
         if uploaded_file is not None:
             text_to_synthesize = uploaded_file.getvalue().decode("utf-8")
             st.success("File uploaded successfully!")
 
     st.markdown("---")
     st.markdown("### Preview Text for Audio Generation")
-    
-    # Final chance to edit before generating audio
     final_audio_text = st.text_area("This exact text will be sent to the AI Voice:", value=text_to_synthesize, height=250)
 
     if st.button("🔊 Generate Voiceover"):
@@ -439,4 +441,4 @@ with tab4:
                     st.error("Failed to generate audio. Please check your internet connection and try again.")
 
 st.divider()
-st.caption("Script Architect Pro v2.5 | ✅ Multi-Tab Studio + Custom Script Upload + US Neural Voices")
+st.caption("Script Architect Pro v3.0 | Angle-First Refinement + Custom Uploads + Neural Voices")
