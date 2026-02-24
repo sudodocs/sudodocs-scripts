@@ -449,7 +449,6 @@ with tab4:
     st.markdown("---")
     st.markdown("### Preview Text for Audio Generation")
     
-    # Store the final audio text into session state so Tab 5 can access it if needed
     st.session_state['tab4_audio_text'] = st.text_area("This exact text will be sent to the AI Voice:", value=text_to_synthesize, height=250)
 
     if st.button("🔊 Generate Voiceover"):
@@ -529,13 +528,19 @@ with tab5:
                     st.warning("Please provide an image prompt.")
                 else:
                     with st.spinner("Rendering your thumbnail..."):
-                        # Format prompt for URL
-                        encoded_prompt = urllib.parse.quote(thumbnail_prompt)
-                        # Call Pollinations.ai for a free 1280x720 image
+                        # ✅ FIXED: Truncate prompt to prevent "URI Too Long" and added a User-Agent
+                        safe_prompt = thumbnail_prompt[:800] 
+                        encoded_prompt = urllib.parse.quote(safe_prompt)
                         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1280&height=720&nologo=true"
                         
                         try:
-                            image_response = requests.get(image_url)
+                            # Setting a User-Agent so the API doesn't block the request
+                            headers = {
+                                "User-Agent": "ScriptArchitectPro/1.0 (Streamlit Application)"
+                            }
+                            
+                            image_response = requests.get(image_url, headers=headers, timeout=30)
+                            
                             if image_response.status_code == 200:
                                 st.image(image_response.content, use_container_width=True, caption="Generated Thumbnail")
                                 
@@ -546,9 +551,12 @@ with tab5:
                                     mime="image/jpeg"
                                 )
                             else:
-                                st.error("Failed to generate image from the server.")
+                                # Provide specific error details for debugging
+                                st.error(f"Failed to generate image. Server returned status code: {image_response.status_code}")
+                                with st.expander("Show Server Response Details"):
+                                    st.write(image_response.text)
                         except Exception as e:
                             st.error(f"Error fetching image: {e}")
 
 st.divider()
-st.caption("Script Architect Pro v4.0 | Fully Integrated Suite: Script ➔ Voice ➔ YouTube Bundle")
+st.caption("Script Architect Pro v4.1 | Fixes: Pollinations API Headers + Payload Sizes")
