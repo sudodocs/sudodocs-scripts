@@ -8,6 +8,7 @@ import tempfile
 import requests
 import os
 import urllib.parse
+import re
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -528,15 +529,17 @@ with tab5:
                     st.warning("Please provide an image prompt.")
                 else:
                     with st.spinner("Rendering your thumbnail..."):
-                        # ✅ FIXED: Truncate prompt to prevent "URI Too Long" and added a User-Agent
-                        safe_prompt = thumbnail_prompt[:800] 
+                        
+                        # 1. Clean the prompt (strip weird symbols that break WAFs) and restrict length
+                        safe_prompt = re.sub(r'[^a-zA-Z0-9\s,]', '', thumbnail_prompt)[:400]
                         encoded_prompt = urllib.parse.quote(safe_prompt)
                         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1280&height=720&nologo=true"
                         
                         try:
-                            # Setting a User-Agent so the API doesn't block the request
+                            # 2. Add Chrome Browser headers to bypass bot protection
                             headers = {
-                                "User-Agent": "ScriptArchitectPro/1.0 (Streamlit Application)"
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
                             }
                             
                             image_response = requests.get(image_url, headers=headers, timeout=30)
@@ -551,12 +554,13 @@ with tab5:
                                     mime="image/jpeg"
                                 )
                             else:
-                                # Provide specific error details for debugging
-                                st.error(f"Failed to generate image. Server returned status code: {image_response.status_code}")
-                                with st.expander("Show Server Response Details"):
-                                    st.write(image_response.text)
+                                # 3. Direct Link Fallback (If the Streamlit server gets blocked, user's browser can still open it!)
+                                st.warning(f"Server Blocked the Request (Code {image_response.status_code}). Don't worry, you can still get your image!")
+                                st.markdown(f"### 👉 **[Click Here to Open & Download Your Thumbnail Directly]({image_url})**")
+                                
                         except Exception as e:
                             st.error(f"Error fetching image: {e}")
+                            st.markdown(f"### 👉 **[Click Here to Open Your Thumbnail Directly]({image_url})**")
 
 st.divider()
-st.caption("Script Architect Pro v4.1 | Fixes: Pollinations API Headers + Payload Sizes")
+st.caption("Script Architect Pro v4.2 | Fixes: Pollinations API Headers & URL Safety")
