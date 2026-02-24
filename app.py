@@ -126,6 +126,7 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     else:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         headers = {'Content-Type': 'application/json'}
+        # Correctly formatted payload for Gemini 2.5 Search Grounding
         data = {
             "contents": [{"parts": [{"text": prompt}]}],
             "systemInstruction": {"parts": [{"text": system_instruction}]},
@@ -153,6 +154,7 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 time.sleep(delay)
             
 def perform_grounded_research(topic, mode, source_type, api_key):
+    """Fetches factual context and real-world parallels using grounding."""
     if mode == "Film & Series Analysis":
         prompt = (
             f"Search the web for the most current and accurate information about '{topic}' (Original Material: {source_type}). "
@@ -184,6 +186,7 @@ def perform_grounded_research(topic, mode, source_type, api_key):
     return call_gemini(api_key, prompt, "You are a factual Research Assistant. Always search the web for current, accurate information and cite your sources.", use_search=True)
 
 def generate_script_package(mode, topic, research, notes, matrix, source_type, api_key):
+    """Synthesizes all inputs into the final multi-pillar script JSON."""
     personas = {
         "Film & Series Analysis": "Master Film Scholar. Provide deep character arc metrics (CACI), Adaptation worthiness (AFW), and technical scores.",
         "Tech News & Investigative": "Investigative Tech Journalist. Provide Root Cause Analysis (RCA) and industry impact metrics.",
@@ -248,16 +251,6 @@ with st.sidebar:
     source_type = "Original"
     if active_mode == "Film & Series Analysis":
         source_type = st.radio("Source Material", ["Original", "Book", "Comic", "True Event", "Remake"])
-    
-    st.divider()
-    st.header("🎙️ Voice Settings")
-    voice_option = st.selectbox("Select Narrator", [
-        ("en-US-ChristopherNeural", "Christopher (Male - Deep/Professional)"),
-        ("en-US-EricNeural", "Eric (Male - Casual)"),
-        ("en-US-AriaNeural", "Aria (Female - Clear)"),
-        ("en-US-JennyNeural", "Jenny (Female - Soft)"),
-        ("en-GB-RyanNeural", "Ryan (British Male)")
-    ], format_func=lambda x: x[1])
     
     st.divider()
     if st.button("Reset All Steps"):
@@ -335,7 +328,6 @@ with tab3:
         else:
             st.success(f"### {p.get('viral_title')}")
             
-            # Show Analytics briefly
             with st.expander("📊 View Analysis & Reports", expanded=False):
                 st.markdown("#### 🌍 Thematic Resonance")
                 st.warning(f"**Analogous Event:** {p.get('thematic_resonance', {}).get('real_world_event')}")
@@ -366,7 +358,7 @@ with tab3:
             default_script_text += f"{full_script.get('act3', '')}\n\n"
             default_script_text += f"{full_script.get('outro', '')}"
             
-            # User edits the text here, and we save it to session state for Tab 4
+            # Save the edits to session state for Tab 4
             st.session_state['final_script_text'] = st.text_area("Your Editable Script:", value=default_script_text.strip(), height=400)
             
             st.download_button(
@@ -382,6 +374,27 @@ with tab3:
 with tab4:
     st.subheader("Step 4: AI Voiceover Studio")
     st.info("Turn your finalized script or a custom uploaded file into professional audio.")
+
+    # Voice Selection (Moved from Sidebar to here)
+    st.markdown("### 🎙️ Voice Settings")
+    voice_option = st.selectbox("Select Narrator (US English)", [
+        # --- MALE VOICES ---
+        ("en-US-ChristopherNeural", "Christopher (Male - Deep/Professional)"),
+        ("en-US-GuyNeural", "Guy (Male - Natural/Conversational)"),
+        ("en-US-EricNeural", "Eric (Male - Casual)"),
+        ("en-US-RogerNeural", "Roger (Male - Confident)"),
+        ("en-US-SteffanNeural", "Steffan (Male - Expressive)"),
+        ("en-US-AndrewNeural", "Andrew (Male - Warm)"),
+        ("en-US-BrianNeural", "Brian (Male - Crisp/News)"),
+        # --- FEMALE VOICES ---
+        ("en-US-AriaNeural", "Aria (Female - Clear)"),
+        ("en-US-JennyNeural", "Jenny (Female - Conversational)"),
+        ("en-US-MichelleNeural", "Michelle (Female - Bright)"),
+        ("en-US-EmmaNeural", "Emma (Female - Friendly)"),
+        ("en-US-AvaNeural", "Ava (Female - Engaging)")
+    ], format_func=lambda x: x[1])
+
+    st.markdown("---")
 
     source_mode = st.radio("Choose Text Source for Voiceover:", ["Use Generated Script (from Tab 3)", "Upload Custom Text File (.txt)"])
     
@@ -400,7 +413,7 @@ with tab4:
     st.markdown("---")
     st.markdown("### Preview Text for Audio Generation")
     
-    # We allow one last chance to edit before generating audio
+    # Final chance to edit before generating audio
     final_audio_text = st.text_area("This exact text will be sent to the AI Voice:", value=text_to_synthesize, height=250)
 
     if st.button("🔊 Generate Voiceover"):
@@ -426,4 +439,4 @@ with tab4:
                     st.error("Failed to generate audio. Please check your internet connection and try again.")
 
 st.divider()
-st.caption("Script Architect Pro v2.4 | ✅ Multi-Tab Studio + Custom Script Upload + Neural Voice")
+st.caption("Script Architect Pro v2.5 | ✅ Multi-Tab Studio + Custom Script Upload + US Neural Voices")
