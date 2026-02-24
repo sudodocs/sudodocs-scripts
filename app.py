@@ -7,8 +7,9 @@ import edge_tts
 import tempfile
 import requests
 import os
-import urllib.parse
 import re
+from PIL import Image, ImageDraw, ImageFont
+import io
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -82,21 +83,75 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- IMAGE PROCESSING LOGIC (PILLOW) ---
+def create_thumbnail_with_overlay(image_url, overlay_text):
+    """Downloads a base image, applies a transparency layer, and adds colored text."""
+    width, height = 1280, 720
+    base_image = None
+    
+    # Try to fetch the image from the URL
+    if image_url and image_url.startswith('http'):
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(image_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                img_data = io.BytesIO(response.content)
+                base_image = Image.open(img_data).convert("RGBA")
+                # Resize and crop to 1280x720
+                base_image = base_image.resize((width, height), Image.Resampling.LANCZOS)
+        except Exception as e:
+            st.warning(f"Could not load the web image ({e}). Generating a fallback background.")
+
+    # Fallback to a sleek dark background if no image is found
+    if base_image is None:
+        base_image = Image.new('RGBA', (width, height), color=(20, 30, 48, 255))
+        
+    # Create the dark transparent overlay (RGBA: Black with 60% opacity)
+    overlay = Image.new('RGBA', base_image.size, (0, 0, 0, 150))
+    final_image = Image.alpha_composite(base_image, overlay)
+    
+    # Initialize drawing context
+    draw = ImageDraw.Draw(final_image)
+    
+    # Try to download a bold, professional font (Roboto Bold)
+    font_size = 85
+    try:
+        font_url = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf"
+        font_response = requests.get(font_url)
+        font_bytes = io.BytesIO(font_response.content)
+        font = ImageFont.truetype(font_bytes, font_size)
+    except:
+        font = ImageFont.load_default() # Fallback if download fails
+        
+    # Calculate text position (Centered)
+    # Using textbbox instead of textsize (which is deprecated in newer PIL versions)
+    try:
+        bbox = draw.textbbox((0, 0), overlay_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+    except AttributeError:
+        # Extreme fallback for very old Pillow versions
+        text_width, text_height = draw.textsize(overlay_text, font=font)
+
+    x = (width - text_width) / 2
+    y = (height - text_height) / 2
+    
+    # Add a slight drop shadow for the text
+    draw.text((x+4, y+4), overlay_text, font=font, fill=(0, 0, 0, 255))
+    # Draw the main text (Yellow/White)
+    draw.text((x, y), overlay_text, font=font, fill=(255, 215, 0, 255)) # Gold color
+
+    return final_image.convert("RGB") # Convert back to RGB for saving as JPG
+
 # --- AUDIO LOGIC (EDGE-TTS) ---
 
 async def text_to_speech_edge(text, voice):
-    """
-    Generates high-quality neural voice audio using Edge-TTS.
-    """
     communicate = edge_tts.Communicate(text, voice)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
         await communicate.save(tmp_file.name)
         return tmp_file.name
 
 def generate_audio_sync(text, voice):
-    """
-    Wrapper to run the async Edge-TTS function in Streamlit.
-    """
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -155,27 +210,34 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False, is_jso
                 time.sleep(delay)
             
 def perform_grounded_research(topic, mode, source_type, api_key):
+    # Added instructions for fetching a legal featured image
+    base_prompt = (
+        "5. FEATURED IMAGE: Find exactly ONE direct image URL (preferably from Wikipedia/Wikimedia Commons or a public domain source) "
+        "that represents this topic. The URL MUST end in .jpg or .png. If you cannot find a direct link, state 'None'.\n"
+        "Gather factual context so I can verify gaps in my script later. Cite sources with URLs."
+    )
+    
     if mode == "Film & Series Analysis":
         prompt = (
-            f"Search the web for the most current and accurate information about '{topic}' (Original Material: {source_type}). "
-            "1. RELEASE INFO: When did this air/release? What is the actual release date and status? "
-            "2. CHARACTER & CAST: List the ACTUAL cast and characters. "
-            "3. DATA: Get IMDb rating, number of episodes/runtime, and critic consensus. "
-            "Gather factual context so I can verify gaps in my script later. Cite sources with URLs."
+            f"Search the web for the most current and accurate information about '{topic}' (Original Material: {source_type}).\n"
+            "1. RELEASE INFO: When did this air/release? What is the actual release date and status?\n"
+            "2. CHARACTER & CAST: List the ACTUAL cast and characters.\n"
+            "3. DATA: Get IMDb rating, number of episodes/runtime, and critic consensus.\n"
+            + base_prompt
         )
     elif mode == "Tech News & Investigative":
         prompt = (
-            f"Search the web for the latest information on '{topic}'. "
-            "1. IMPACT: Current affected user stats and severity level. "
-            "2. TIMELINE: When did this occur and what's the current status? "
-            "Gather factual context to support an investigative script. Cite sources with URLs."
+            f"Search the web for the latest information on '{topic}'.\n"
+            "1. IMPACT: Current affected user stats and severity level.\n"
+            "2. TIMELINE: When did this occur and what's the current status?\n"
+            + base_prompt
         )
     else: 
         prompt = (
-            f"Search for current 2026 information about '{topic}'. "
-            "1. ARCHITECTURE: Best practices and design patterns being used today. "
-            "2. TRENDS: Latest industry standards, framework versions, and adoption rates. "
-            "Gather factual context to verify educational content. Cite sources with URLs."
+            f"Search for current 2026 information about '{topic}'.\n"
+            "1. ARCHITECTURE: Best practices and design patterns being used today.\n"
+            "2. TRENDS: Latest industry standards, framework versions, and adoption rates.\n"
+            + base_prompt
         )
     return call_gemini(api_key, prompt, "You are a factual Research Assistant. Always search the web for current, accurate information.", use_search=True)
 
@@ -222,20 +284,22 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     """
     
     result = call_gemini(api_key, prompt, personas.get(mode), is_json=True)
-    
     try:
         clean = result.replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
     except Exception as e:
         return {"error": f"Synthesis failed to return valid JSON. Error: {str(e)}", "raw": result}
 
-def generate_youtube_bundle(api_key, script_text):
-    """Generates the YouTube metadata and thumbnail prompt based on the final script."""
+def generate_youtube_bundle(api_key, script_text, background_research):
+    """Generates the YouTube metadata and extracts image/text for the thumbnail."""
     prompt = f"""
-    Analyze the following YouTube script and create a complete SEO and packaging bundle.
+    Analyze the following YouTube script and background research to create a complete SEO and packaging bundle.
     
     SCRIPT:
     {script_text}
+    
+    RESEARCH DATA (Find the image link here):
+    {background_research}
     
     JSON SCHEMA REQUIREMENTS:
     {{
@@ -243,7 +307,8 @@ def generate_youtube_bundle(api_key, script_text):
         "description": "String (A full YouTube description including a hook, summary, and placeholder for social links)",
         "tags": ["tag1", "tag2", "tag3", "etc (Generate 15 highly relevant SEO tags)"],
         "hashtags": ["#tag1", "#tag2", "#tag3 (Generate 3-5 highly relevant hashtags)"],
-        "thumbnail_prompt": "String (A highly detailed, visual prompt for an AI image generator to create a catchy, high-contrast, professional YouTube thumbnail. Specify lighting, subjects, and mood.)"
+        "base_image_url": "String (Extract the direct .jpg or .png URL from the RESEARCH DATA. If none exists, output empty string.)",
+        "thumbnail_text": "String (Short, punchy, uppercase text to overlay on the thumbnail, max 4 words. E.g., 'THE MATRIX REVIEW' or 'RUST CRASH COURSE')"
     }}
     """
     result = call_gemini(api_key, prompt, "You are a master YouTube strategist and SEO expert.", is_json=True)
@@ -284,7 +349,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # --- TAB 1: RESEARCH ---
 with tab1:
     st.subheader("Step 1: Intelligence Gathering")
-    st.info("🌐 Gather background facts to act as a factual safety net for your script.")
+    st.info("🌐 Gather background facts and legal featured images to act as a safety net for your script.")
     
     topic = st.text_input("Topic or Title", placeholder="e.g., The Night Manager Season 2, Crowdstrike Outage")
     
@@ -297,7 +362,7 @@ with tab1:
         elif not topic: 
             st.warning("Please provide a topic.")
         else:
-            with st.spinner("🌐 Gathering background facts from the web..."):
+            with st.spinner("🌐 Gathering facts and legal images from the web..."):
                 st.session_state['research'] = perform_grounded_research(topic, current_mode, current_source, api_key)
                 st.session_state['topic'] = topic
 
@@ -479,7 +544,7 @@ with tab4:
 # --- TAB 5: CONTENT BUNDLE ---
 with tab5:
     st.subheader("Step 5: YouTube Content Bundle")
-    st.info("Package your final script with a viral title, SEO description, and an AI-generated thumbnail.")
+    st.info("Package your final script with a viral title, SEO description, tags, and a dynamically generated text-overlay thumbnail.")
     
     bundle_source_choice = st.radio("Select the script text to use as the foundation for your bundle:", 
                                     ["Use 'Generated Script' (from Tab 3)", "Use 'Final Audio Text' (from Tab 4)"])
@@ -491,13 +556,15 @@ with tab5:
         else:
             target_text = st.session_state.get('tab4_audio_text', '')
             
+        research_data = st.session_state.get('research', '')
+            
         if not api_key:
             st.error("⚠️ API Key required. Please add it to the sidebar.")
         elif not target_text.strip():
             st.error("⚠️ Target text is empty. Please ensure you have generated or uploaded a script in the previous tabs.")
         else:
-            with st.spinner("Analyzing script and generating YouTube metadata..."):
-                st.session_state['yt_bundle'] = generate_youtube_bundle(api_key, target_text)
+            with st.spinner("Analyzing script and extracting the base image..."):
+                st.session_state['yt_bundle'] = generate_youtube_bundle(api_key, target_text, research_data)
                 
     if 'yt_bundle' in st.session_state:
         bundle = st.session_state['yt_bundle']
@@ -517,27 +584,37 @@ with tab5:
             with col_hashes:
                 st.text_area("**Hashtags**", value=" ".join(bundle.get('hashtags', [])), height=100)
             
-            # Thumbnail Generation Section
+            # Text-Overlay Thumbnail Section
             st.markdown("---")
-            st.markdown("### 🎨 AI Thumbnail Studio")
-            st.caption("Review the visual prompt below, tweak it if needed, and hit Generate to create your free thumbnail using Pollinations AI.")
+            st.markdown("### 🎨 Thumbnail Generator")
+            st.caption("We found a legal base image from your research and crafted the overlay text below.")
             
-            thumbnail_prompt = st.text_area("Image Prompt:", value=bundle.get('thumbnail_prompt', ''), height=100)
+            base_img = bundle.get('base_image_url', '')
+            st.text_input("Base Image URL:", value=base_img)
             
-            if st.button("🖼️ Generate Thumbnail"):
-                if not thumbnail_prompt:
-                    st.warning("Please provide an image prompt.")
-                else:
-                    # 1. Strip special characters to prevent URL breaks, cap at 300 chars to be safe
-                    safe_prompt = re.sub(r'[^a-zA-Z0-9\s,]', '', thumbnail_prompt)[:300].strip()
-                    encoded_prompt = urllib.parse.quote(safe_prompt)
-                    
-                    # 2. Construct the direct Pollinations URL
-                    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1280&height=720&nologo=true"
-                    
-                    # 3. Use st.image to force the USER'S browser to fetch the image (Bypasses Cloudflare Server Blocks)
-                    st.image(image_url, use_container_width=True, caption="Generated Thumbnail (Right-click image to save)")
-                    st.markdown(f"**[🔗 Click Here to Open Full Size Image in New Tab]({image_url})**")
+            overlay_text = bundle.get('thumbnail_text', 'REVIEW')
+            overlay_text = st.text_input("Thumbnail Overlay Text (Editable):", value=overlay_text)
+            
+            if st.button("🖼️ Generate Overlay Thumbnail"):
+                with st.spinner("Compositing image, applying transparency, and adding text..."):
+                    try:
+                        final_thumb = create_thumbnail_with_overlay(base_img, overlay_text)
+                        
+                        st.image(final_thumb, caption="Final Rendered Thumbnail", use_container_width=True)
+                        
+                        # Prepare for download
+                        buf = io.BytesIO()
+                        final_thumb.save(buf, format="JPEG", quality=95)
+                        byte_im = buf.getvalue()
+                        
+                        st.download_button(
+                            label="📥 Download Thumbnail (.jpg)",
+                            data=byte_im,
+                            file_name="youtube_overlay_thumbnail.jpg",
+                            mime="image/jpeg"
+                        )
+                    except Exception as e:
+                        st.error(f"Failed to generate thumbnail composite: {e}")
 
 st.divider()
-st.caption("Script Architect Pro v4.3 | Fix: Frontend Image Rendering (Bypass WAF Blocks)")
+st.caption("Script Architect Pro v5.0 | Complete Suite with Python Image Compositing")
