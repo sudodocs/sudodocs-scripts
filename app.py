@@ -105,12 +105,20 @@ def generate_audio_sync(text, voice):
 
 # --- BACKEND LOGIC (GEMINI 2.5 FLASH) ---
 
-def call_gemini(api_key, prompt, system_instruction="", use_search=False):
+def call_gemini(api_key, prompt, system_instruction="", use_search=False, is_json=False):
+    """
+    ✅ FIXED: Added 'is_json' parameter to enforce strict JSON mode in Gemini.
+    """
     if not use_search:
         genai.configure(api_key=api_key)
+        
+        # Enforce strict JSON output from the model
+        gen_config = {"response_mime_type": "application/json"} if is_json else None
+        
         model = genai.GenerativeModel(
             model_name='gemini-2.5-flash',
             system_instruction=system_instruction,
+            generation_config=gen_config
         )
         for delay in [1, 2, 4, 8, 16]:
             try:
@@ -195,31 +203,37 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     2. ANGLE-FIRST REFINEMENT: Your primary job is to expand and polish the text provided in the "CREATOR'S DRAFT". Preserve the creator's unique perspective and voice.
     3. STRATEGIC GAP-FILLING: Look at the "BACKGROUND RESEARCH". ONLY pull facts from this research to fill in missing details or to factually support the points the creator made in their draft. Do NOT dump all the research into the script. If a research point doesn't serve the creator's angle, completely ignore it.
     4. ALIGNMENT: Match the tone indicated in the "SELECTED MATRIX".
+    5. ESCAPE CHARACTERS: Ensure ALL double quotes inside your script text are properly escaped (e.g., \\"Like this\\") so the JSON remains completely valid.
     
     JSON SCHEMA REQUIREMENTS:
-    - thematic_resonance: {{ "real_world_event": "String", "explanation": "Detailed parallel based on angle" }}
-    - character_matrix: [ {{ "name": "Name", "role": "Main/Side", "arc_score": 0-10, "ghost_vs_truth": "String" }} ]
-    - technical_report: {{ "script": 0-10, "direction": 0-10, "editing": 0-10, "acting": 0-10 }}
-    - viral_title: "String (Catchy YouTube Title)"
-    - hook_script: "String (A punchy, conversational opening hook)"
-    - full_script: {{ 
-        "intro": "Conversational intro flowing from the hook.",
-        "act1": "Conversational Act 1 (Refining the creator's angle).",
-        "act2": "Conversational Act 2 (Adding factual support to the angle).",
-        "act3": "Conversational Act 3 (Climax of the analysis).",
-        "outro": "Natural conclusion and call-to-action."
+    {{
+      "thematic_resonance": {{ "real_world_event": "String", "explanation": "Detailed parallel based on angle" }},
+      "character_matrix": [ {{ "name": "Name", "role": "Main/Side", "arc_score": 0, "ghost_vs_truth": "String" }} ],
+      "technical_report": {{ "script": 0, "direction": 0, "editing": 0, "acting": 0 }},
+      "viral_title": "String (Catchy YouTube Title)",
+      "hook_script": "String (A punchy, conversational opening hook)",
+      "full_script": {{ 
+          "intro": "Conversational intro flowing from the hook.",
+          "act1": "Conversational Act 1 (Refining the creator's angle).",
+          "act2": "Conversational Act 2 (Adding factual support to the angle).",
+          "act3": "Conversational Act 3 (Climax of the analysis).",
+          "outro": "Natural conclusion and call-to-action."
+      }},
+      "script_outline": ["Brief point 1", "Brief point 2", "Brief point 3"],
+      "seo_metadata": {{ "description": "String", "tags": ["tag1", "tag2"] }}
     }}
-    - script_outline: ["Brief point 1", "Brief point 2", "Brief point 3"]
-    - seo_metadata: {{ "description": "String", "tags": ["tag1", "tag2"] }}
-    
-    Ensure the final 'full_script' text feels like one continuous, natural speech.
     """
-    result = call_gemini(api_key, prompt, personas.get(mode))
+    
+    # ✅ FIXED: Passing `is_json=True` to enforce valid JSON generation.
+    result = call_gemini(api_key, prompt, personas.get(mode), is_json=True)
+    
     try:
+        # Strip any markdown blocks if the model accidentally includes them despite JSON mode
         clean = result.replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
-    except:
-        return {"error": "Synthesis failed to return valid JSON.", "raw": result}
+    except Exception as e:
+        # ✅ FIXED: Now captures the exact exception string so we know what broke.
+        return {"error": f"Synthesis failed to return valid JSON. Error: {str(e)}", "raw": result}
 
 # --- APPLICATION UI ---
 
@@ -250,7 +264,6 @@ with tab1:
     
     topic = st.text_input("Topic or Title", placeholder="e.g., The Night Manager Season 2, Crowdstrike Outage")
     
-    # Read active mode from session state (set in Tab 2) to inform the research prompt
     current_mode = st.session_state.get("active_mode_key", "Film & Series Analysis")
     current_source = st.session_state.get("source_type_key", "Original")
     
@@ -274,7 +287,6 @@ with tab1:
 with tab2:
     st.subheader("Step 2: Core Concept & Tuning")
     
-    # Moved Content Mode here
     active_mode = st.selectbox("Content Mode", 
                                ["Film & Series Analysis", "Tech News & Investigative", "Educational Technology"],
                                key="active_mode_key")
@@ -303,7 +315,6 @@ with tab2:
         matrix_data['Method'] = st.select_slider("Pedagogical Style", ["Theory", "Mixed", "Practical"])
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # UNIQUE ANGLE REFINEMENT
     st.markdown("### ✍️ Your Unique Angle (Draft)")
     st.info("The AI will focus on refining YOUR draft into a conversational script. It will only use the research from Step 1 to fill in factual gaps.")
     
@@ -314,7 +325,6 @@ with tab2:
         if 'research' not in st.session_state: 
             st.error("Please run Step 1 (Research) first to gather background facts.")
         else:
-            # Logic to handle text vs file upload
             final_angle = ""
             if angle_text.strip():
                 final_angle = angle_text
@@ -340,7 +350,7 @@ with tab3:
         p = st.session_state['package']
         if "error" in p: 
             st.error(p['error'])
-            with st.expander("View Details"): st.text(p.get('raw'))
+            with st.expander("View Raw Output (For Debugging)"): st.text(p.get('raw'))
         else:
             st.success(f"### {p.get('viral_title')}")
             
@@ -353,7 +363,6 @@ with tab3:
                     for char in p.get('character_matrix', []):
                         st.markdown(f"**{char['name']}** <span class='metric-badge'>{char['arc_score']}/10</span>", unsafe_allow_html=True)
 
-            # Editable Script Section
             st.markdown("### 📝 Conversational Script Editor")
             st.info("💡 Edit the text below exactly as you want it spoken. Add commas or dashes (---) to force natural pauses for the voiceover. Your edits are automatically saved.")
             
@@ -441,4 +450,4 @@ with tab4:
                     st.error("Failed to generate audio. Please check your internet connection and try again.")
 
 st.divider()
-st.caption("Script Architect Pro v3.0 | Angle-First Refinement + Custom Uploads + Neural Voices")
+st.caption("Script Architect Pro v3.1 | Strict JSON Enforced + Angle-First Refinement + Neural Voices")
