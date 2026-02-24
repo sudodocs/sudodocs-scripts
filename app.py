@@ -109,12 +109,13 @@ def generate_audio_sync(text, voice):
 def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     """
     Updated to use Gemini 2.5 Flash for both SDK and REST API calls.
+    Fixed the Grounding Tool payload for Gemini 2.5 compatibility.
     """
     if not use_search:
         # Use SDK for non-search queries
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash', # Updated to match your screenshot
+            model_name='gemini-2.5-flash', 
             system_instruction=system_instruction,
         )
         for delay in [1, 2, 4, 8, 16]:
@@ -127,11 +128,11 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 time.sleep(delay)
     else:
         # Use REST API with grounding for search queries
-        # Updated URL to use gemini-2.5-flash
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         
         headers = {'Content-Type': 'application/json'}
         
+        # ✅ FIXED PAYLOAD: Gemini 2.5 uses "google_search" instead of "google_search_retrieval"
         data = {
             "contents": [{
                 "parts": [{"text": prompt}]
@@ -140,12 +141,7 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 "parts": [{"text": system_instruction}]
             },
             "tools": [{
-                "google_search_retrieval": {
-                    "dynamic_retrieval_config": {
-                        "mode": "dynamic_retrieval_config_mode_unspecified",
-                        "dynamic_threshold": 0.3,
-                    }
-                }
+                "google_search": {} 
             }]
         }
         
@@ -165,7 +161,7 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                     
             except requests.exceptions.RequestException as e:
                 if delay == 16:
-                    return f"Error: {str(e)}"
+                    return f"Error: {str(e)}\nResponse Content: {e.response.text if e.response else 'No response content'}"
                 time.sleep(delay)
             except Exception as e:
                 if delay == 16:
