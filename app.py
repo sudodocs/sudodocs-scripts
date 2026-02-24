@@ -7,6 +7,7 @@ import edge_tts
 import tempfile
 import requests
 import os
+import urllib.parse
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -106,13 +107,8 @@ def generate_audio_sync(text, voice):
 # --- BACKEND LOGIC (GEMINI 2.5 FLASH) ---
 
 def call_gemini(api_key, prompt, system_instruction="", use_search=False, is_json=False):
-    """
-    ✅ FIXED: Added 'is_json' parameter to enforce strict JSON mode in Gemini.
-    """
     if not use_search:
         genai.configure(api_key=api_key)
-        
-        # Enforce strict JSON output from the model
         gen_config = {"response_mime_type": "application/json"} if is_json else None
         
         model = genai.GenerativeModel(
@@ -224,16 +220,37 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     }}
     """
     
-    # ✅ FIXED: Passing `is_json=True` to enforce valid JSON generation.
     result = call_gemini(api_key, prompt, personas.get(mode), is_json=True)
     
     try:
-        # Strip any markdown blocks if the model accidentally includes them despite JSON mode
         clean = result.replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
     except Exception as e:
-        # ✅ FIXED: Now captures the exact exception string so we know what broke.
         return {"error": f"Synthesis failed to return valid JSON. Error: {str(e)}", "raw": result}
+
+def generate_youtube_bundle(api_key, script_text):
+    """Generates the YouTube metadata and thumbnail prompt based on the final script."""
+    prompt = f"""
+    Analyze the following YouTube script and create a complete SEO and packaging bundle.
+    
+    SCRIPT:
+    {script_text}
+    
+    JSON SCHEMA REQUIREMENTS:
+    {{
+        "viral_title": "String (A high-CTR, emotional, and catchy YouTube title)",
+        "description": "String (A full YouTube description including a hook, summary, and placeholder for social links)",
+        "tags": ["tag1", "tag2", "tag3", "etc (Generate 15 highly relevant SEO tags)"],
+        "hashtags": ["#tag1", "#tag2", "#tag3 (Generate 3-5 highly relevant hashtags)"],
+        "thumbnail_prompt": "String (A highly detailed, visual prompt for an AI image generator to create a catchy, high-contrast, professional YouTube thumbnail. Specify lighting, subjects, and mood.)"
+    }}
+    """
+    result = call_gemini(api_key, prompt, "You are a master YouTube strategist and SEO expert.", is_json=True)
+    try:
+        clean = result.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean)
+    except Exception as e:
+        return {"error": f"Failed to generate bundle. Error: {str(e)}", "raw": result}
 
 # --- APPLICATION UI ---
 
@@ -254,8 +271,14 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# --- 4 LINEAR WORKFLOW TABS ---
-tab1, tab2, tab3, tab4 = st.tabs(["1. Research & Grounding", "2. Analysis Matrix", "3. Generated Script", "4. Generate Voiceover"])
+# --- 5 LINEAR WORKFLOW TABS ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "1. Research", 
+    "2. Analysis", 
+    "3. Script", 
+    "4. Voiceover",
+    "5. Content Bundle"
+])
 
 # --- TAB 1: RESEARCH ---
 with tab1:
@@ -339,7 +362,7 @@ with tab2:
                     st.session_state['package'] = generate_script_package(
                         active_mode, topic, st.session_state['research'], final_angle, str(matrix_data), source_type, api_key
                     )
-                    st.success("🎉 **Step 2 Complete!** Your script has been refined. Please click the **'3. Generated Script'** tab.")
+                    st.success("🎉 **Step 2 Complete!** Your script has been refined. Please click the **'3. Script'** tab.")
 
 # --- TAB 3: GENERATED SCRIPT ---
 with tab3:
@@ -384,7 +407,7 @@ with tab3:
                 mime="text/plain"
             )
             
-            st.success("🎉 **Step 3 Complete!** Once you are happy with the pacing, click the **'4. Generate Voiceover'** tab.")
+            st.success("🎉 **Step 3 Complete!** Once you are happy with the pacing, click the **'4. Voiceover'** tab.")
 
 # --- TAB 4: GENERATE VOICEOVER ---
 with tab4:
@@ -425,15 +448,17 @@ with tab4:
 
     st.markdown("---")
     st.markdown("### Preview Text for Audio Generation")
-    final_audio_text = st.text_area("This exact text will be sent to the AI Voice:", value=text_to_synthesize, height=250)
+    
+    # Store the final audio text into session state so Tab 5 can access it if needed
+    st.session_state['tab4_audio_text'] = st.text_area("This exact text will be sent to the AI Voice:", value=text_to_synthesize, height=250)
 
     if st.button("🔊 Generate Voiceover"):
-        if not final_audio_text.strip():
+        if not st.session_state['tab4_audio_text'].strip():
             st.error("Text box is empty. Please provide text to generate audio.")
         else:
             with st.spinner(f"Synthesizing audio with {voice_option[1]} (this may take 10-20 seconds)..."):
                 selected_voice = voice_option[0] 
-                audio_file_path = generate_audio_sync(final_audio_text, selected_voice)
+                audio_file_path = generate_audio_sync(st.session_state['tab4_audio_text'], selected_voice)
                 
                 if audio_file_path:
                     st.success("✅ Audio generated successfully!")
@@ -448,6 +473,82 @@ with tab4:
                         )
                 else:
                     st.error("Failed to generate audio. Please check your internet connection and try again.")
+            
+            st.success("🎉 **Step 4 Complete!** Ready to finalize? Click the **'5. Content Bundle'** tab to generate your SEO metadata and thumbnail.")
+
+# --- TAB 5: CONTENT BUNDLE ---
+with tab5:
+    st.subheader("Step 5: YouTube Content Bundle")
+    st.info("Package your final script with a viral title, SEO description, and an AI-generated thumbnail.")
+    
+    bundle_source_choice = st.radio("Select the script text to use as the foundation for your bundle:", 
+                                    ["Use 'Generated Script' (from Tab 3)", "Use 'Final Audio Text' (from Tab 4)"])
+    
+    if st.button("📦 Generate Content Bundle"):
+        target_text = ""
+        if bundle_source_choice == "Use 'Generated Script' (from Tab 3)":
+            target_text = st.session_state.get('final_script_text', '')
+        else:
+            target_text = st.session_state.get('tab4_audio_text', '')
+            
+        if not api_key:
+            st.error("⚠️ API Key required. Please add it to the sidebar.")
+        elif not target_text.strip():
+            st.error("⚠️ Target text is empty. Please ensure you have generated or uploaded a script in the previous tabs.")
+        else:
+            with st.spinner("Analyzing script and generating YouTube metadata..."):
+                st.session_state['yt_bundle'] = generate_youtube_bundle(api_key, target_text)
+                
+    if 'yt_bundle' in st.session_state:
+        bundle = st.session_state['yt_bundle']
+        if "error" in bundle:
+            st.error(bundle['error'])
+        else:
+            st.success("✅ YouTube Bundle Generated!")
+            
+            # Text Metadata Section
+            st.markdown("### 📝 YouTube Metadata")
+            st.text_input("**Viral Title**", value=bundle.get('viral_title', ''))
+            st.text_area("**Description**", value=bundle.get('description', ''), height=200)
+            
+            col_tags, col_hashes = st.columns(2)
+            with col_tags:
+                st.text_area("**Tags** (Comma separated)", value=", ".join(bundle.get('tags', [])), height=100)
+            with col_hashes:
+                st.text_area("**Hashtags**", value=" ".join(bundle.get('hashtags', [])), height=100)
+            
+            # Thumbnail Generation Section
+            st.markdown("---")
+            st.markdown("### 🎨 AI Thumbnail Studio")
+            st.caption("Review the visual prompt below, tweak it if needed, and hit Generate to create your free thumbnail using Pollinations AI.")
+            
+            thumbnail_prompt = st.text_area("Image Prompt:", value=bundle.get('thumbnail_prompt', ''), height=100)
+            
+            if st.button("🖼️ Generate Thumbnail"):
+                if not thumbnail_prompt:
+                    st.warning("Please provide an image prompt.")
+                else:
+                    with st.spinner("Rendering your thumbnail..."):
+                        # Format prompt for URL
+                        encoded_prompt = urllib.parse.quote(thumbnail_prompt)
+                        # Call Pollinations.ai for a free 1280x720 image
+                        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1280&height=720&nologo=true"
+                        
+                        try:
+                            image_response = requests.get(image_url)
+                            if image_response.status_code == 200:
+                                st.image(image_response.content, use_container_width=True, caption="Generated Thumbnail")
+                                
+                                st.download_button(
+                                    label="📥 Download Thumbnail (.jpg)",
+                                    data=image_response.content,
+                                    file_name="youtube_thumbnail.jpg",
+                                    mime="image/jpeg"
+                                )
+                            else:
+                                st.error("Failed to generate image from the server.")
+                        except Exception as e:
+                            st.error(f"Error fetching image: {e}")
 
 st.divider()
-st.caption("Script Architect Pro v3.1 | Strict JSON Enforced + Angle-First Refinement + Neural Voices")
+st.caption("Script Architect Pro v4.0 | Fully Integrated Suite: Script ➔ Voice ➔ YouTube Bundle")
