@@ -87,7 +87,6 @@ async def text_to_speech_edge(text, voice):
     Generates high-quality neural voice audio using Edge-TTS.
     """
     communicate = edge_tts.Communicate(text, voice)
-    # Create a temporary file to store the audio
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
         await communicate.save(tmp_file.name)
         return tmp_file.name
@@ -108,14 +107,12 @@ def generate_audio_sync(text, voice):
 
 def call_gemini(api_key, prompt, system_instruction="", use_search=False):
     """
-    Updated to use Gemini 2.5 Flash for both SDK and REST API calls.
-    Fixed the Grounding Tool payload for Gemini 2.5 compatibility.
+    Uses Gemini 2.5 Flash. Includes corrected payload for Google Search grounding.
     """
     if not use_search:
-        # Use SDK for non-search queries
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash', 
+            model_name='gemini-2.5-flash',
             system_instruction=system_instruction,
         )
         for delay in [1, 2, 4, 8, 16]:
@@ -127,22 +124,12 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                     return f"Error: {str(e)}"
                 time.sleep(delay)
     else:
-        # Use REST API with grounding for search queries
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        
         headers = {'Content-Type': 'application/json'}
-        
-        # ✅ FIXED PAYLOAD: Gemini 2.5 uses "google_search" instead of "google_search_retrieval"
         data = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }],
-            "systemInstruction": {
-                "parts": [{"text": system_instruction}]
-            },
-            "tools": [{
-                "google_search": {} 
-            }]
+            "contents": [{"parts": [{"text": prompt}]}],
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "tools": [{"google_search": {}}] 
         }
         
         for delay in [1, 2, 4, 8, 16]:
@@ -150,15 +137,12 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 response = requests.post(url, headers=headers, json=data, timeout=60)
                 response.raise_for_status()
                 result = response.json()
-                
-                # Extract text from response
                 if 'candidates' in result and len(result['candidates']) > 0:
                     parts = result['candidates'][0]['content']['parts']
                     text_parts = [part.get('text', '') for part in parts if 'text' in part]
                     return '\n'.join(text_parts)
                 else:
                     return f"Error: Unexpected response format"
-                    
             except requests.exceptions.RequestException as e:
                 if delay == 16:
                     return f"Error: {str(e)}\nResponse Content: {e.response.text if e.response else 'No response content'}"
@@ -169,7 +153,6 @@ def call_gemini(api_key, prompt, system_instruction="", use_search=False):
                 time.sleep(delay)
             
 def perform_grounded_research(topic, mode, source_type, api_key):
-    """Fetches factual context and real-world parallels using grounding."""
     if mode == "Film & Series Analysis":
         prompt = (
             f"Search the web for the most current and accurate information about '{topic}' (Original Material: {source_type}). "
@@ -190,7 +173,7 @@ def perform_grounded_research(topic, mode, source_type, api_key):
             "4. TIMELINE: When did this occur and what's the current status? "
             "Cite sources with URLs."
         )
-    else: # Educational Technology
+    else: 
         prompt = (
             f"Search for current 2026 information about '{topic}'. "
             "1. PITFALLS: Common beginner mistakes documented in recent tutorials or Stack Overflow. "
@@ -198,17 +181,14 @@ def perform_grounded_research(topic, mode, source_type, api_key):
             "3. TRENDS: Latest industry standards, framework versions, and adoption rates. "
             "Cite sources with URLs."
         )
-    
     return call_gemini(api_key, prompt, "You are a factual Research Assistant. Always search the web for current, accurate information and cite your sources.", use_search=True)
 
 def generate_script_package(mode, topic, research, notes, matrix, source_type, api_key):
-    """Synthesizes all inputs into the final multi-pillar script JSON."""
     personas = {
         "Film & Series Analysis": "Master Film Scholar. Provide deep character arc metrics (CACI), Adaptation worthiness (AFW), and technical scores.",
         "Tech News & Investigative": "Investigative Tech Journalist. Provide Root Cause Analysis (RCA) and industry impact metrics.",
         "Educational Technology": "Senior Technical Educator. Use the Feynman Technique to simplify complex logic."
     }
-    
     prompt = f"""
     TOPIC: {topic}
     SOURCE TYPE: {source_type}
@@ -241,7 +221,6 @@ def generate_script_package(mode, topic, research, notes, matrix, source_type, a
     
     Use ONLY the information from the RESEARCH DATA which came from live web searches.
     """
-    
     result = call_gemini(api_key, prompt, personas.get(mode))
     try:
         clean = result.replace("```json", "").replace("```", "").strip()
@@ -271,7 +250,6 @@ with st.sidebar:
         source_type = st.radio("Source Material", ["Original", "Book", "Comic", "True Event", "Remake"])
     
     st.divider()
-    # Voice selection
     st.header("🎙️ Voice Settings")
     voice_option = st.selectbox("Select Narrator", [
         ("en-US-ChristopherNeural", "Christopher (Male - Deep/Professional)"),
@@ -286,8 +264,8 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# Linear Workflow Tabs
-tab1, tab2, tab3 = st.tabs(["1. Research & Grounding", "2. Analysis Matrix", "3. Final Studio"])
+# --- 4 LINEAR WORKFLOW TABS ---
+tab1, tab2, tab3, tab4 = st.tabs(["1. Research & Grounding", "2. Analysis Matrix", "3. Generated Script", "4. Generate Voiceover"])
 
 # --- TAB 1: RESEARCH ---
 with tab1:
@@ -310,12 +288,11 @@ with tab1:
         st.success("✅ Research Complete")
         st.info("### Research Briefing")
         st.markdown(st.session_state['research'])
-        st.success("Context established. Proceed to the 'Analysis Matrix' tab.")
+        st.success("🎉 **Step 1 Complete!** Please click the **'2. Analysis Matrix'** tab above to continue.")
 
 # --- TAB 2: MATRIX ---
 with tab2:
     st.subheader("Step 2: Analysis Tuning")
-    
     st.markdown('<div class="report-card">', unsafe_allow_html=True)
     matrix_data = {}
     if active_mode == "Film & Series Analysis":
@@ -343,9 +320,11 @@ with tab2:
             topic = st.session_state.get('topic', 'Unknown Topic')
             with st.spinner("Synthesizing script components..."):
                 st.session_state['package'] = generate_script_package(active_mode, topic, st.session_state['research'], user_notes, str(matrix_data), source_type, api_key)
+                st.success("🎉 **Step 2 Complete!** The script has been generated. Please click the **'3. Generated Script'** tab to review and edit.")
 
-# --- TAB 3: OUTPUT ---
+# --- TAB 3: GENERATED SCRIPT ---
 with tab3:
+    st.subheader("Step 3: Script Review & Editing")
     if 'package' not in st.session_state:
         st.info("Complete Step 2 to generate the final script suite.")
     else:
@@ -356,126 +335,95 @@ with tab3:
         else:
             st.success(f"### {p.get('viral_title')}")
             
-            # Thematic Resonance
-            st.markdown("#### 🌍 Thematic Resonance")
-            tr = p.get('thematic_resonance', {})
-            st.warning(f"**Analogous Event:** {tr.get('real_world_event')}")
-            st.write(tr.get('explanation'))
-            
-            if active_mode == "Film & Series Analysis":
-                # Character Matrix
-                st.markdown("#### 👥 Character Arc Index (CACI)")
-                for char in p.get('character_matrix', []):
-                    st.markdown(f"**{char['name']}** <span class='metric-badge'>{char['arc_score']}/10</span>", unsafe_allow_html=True)
-                    st.caption(f"Role: {char['role']} | {char['ghost_vs_truth']}")
+            # Show Analytics briefly
+            with st.expander("📊 View Analysis & Reports", expanded=False):
+                st.markdown("#### 🌍 Thematic Resonance")
+                st.warning(f"**Analogous Event:** {p.get('thematic_resonance', {}).get('real_world_event')}")
+                st.write(p.get('thematic_resonance', {}).get('explanation'))
+                
+                if active_mode == "Film & Series Analysis":
+                    for char in p.get('character_matrix', []):
+                        st.markdown(f"**{char['name']}** <span class='metric-badge'>{char['arc_score']}/10</span>", unsafe_allow_html=True)
+                    st.markdown("#### 🏆 Technical Report Card")
+                    trc = p.get('technical_report', {})
+                    tc1, tc2, tc3, tc4 = st.columns(4)
+                    tc1.metric("Script", trc.get('script'))
+                    tc2.metric("Direction", trc.get('direction'))
+                    tc3.metric("Editing", trc.get('editing'))
+                    tc4.metric("Acting", trc.get('acting'))
 
-                # Adaptation Worthiness
-                st.markdown("#### 📚 Adaptation Worthiness (AFW)")
-                ar = p.get('adaptation_report', {})
-                col_a1, col_a2 = st.columns(2)
-                col_a1.metric("Fidelity Score", f"{ar.get('fidelity_score')}/10")
-                col_a2.metric("Worthiness Score", f"{ar.get('worthiness_score')}/10")
-                st.caption(ar.get('justification'))
-
-                # Report Card
-                st.markdown("#### 🏆 Technical Report Card")
-                trc = p.get('technical_report', {})
-                tc1, tc2, tc3, tc4 = st.columns(4)
-                tc1.metric("Script", trc.get('script'))
-                tc2.metric("Direction", trc.get('direction'))
-                tc3.metric("Editing", trc.get('editing'))
-                tc4.metric("Acting", trc.get('acting'))
-
-            # Common Fields
-            st.markdown("#### 🪝 The Hook")
-            st.info(p.get('hook_script'))
-            
-            # FULL SCRIPT
-            st.markdown("---")
-            st.markdown("### 🎬 Complete YouTube Script")
+            # Editable Script Section
+            st.markdown("### ✍️ Final Script Editor")
+            st.info("💡 Edit the text below exactly as you want it spoken. (e.g., Acronyms read better with dashes like A-W-S). Your edits are automatically saved for the voiceover step!")
             
             full_script = p.get('full_script', {})
-            full_script_text = ""
             
-            if full_script:
-                full_script_text += f"{p.get('hook_script')}\n\n"
-                
-                # Intro
-                with st.expander("📍 INTRO", expanded=True):
-                    text = full_script.get('intro', 'No intro available')
-                    st.write(text)
-                    full_script_text += f"{text}\n\n"
-                
-                # Act 1
-                with st.expander("🎭 ACT 1", expanded=False):
-                    text = full_script.get('act1', 'No Act 1 content')
-                    st.write(text)
-                    full_script_text += f"{text}\n\n"
+            # Combine script into a single editable block
+            default_script_text = f"{p.get('hook_script', '')}\n\n"
+            default_script_text += f"{full_script.get('intro', '')}\n\n"
+            default_script_text += f"{full_script.get('act1', '')}\n\n"
+            default_script_text += f"{full_script.get('act2', '')}\n\n"
+            default_script_text += f"{full_script.get('act3', '')}\n\n"
+            default_script_text += f"{full_script.get('outro', '')}"
+            
+            # User edits the text here, and we save it to session state for Tab 4
+            st.session_state['final_script_text'] = st.text_area("Your Editable Script:", value=default_script_text.strip(), height=400)
+            
+            st.download_button(
+                label="📥 Download Text Script",
+                data=st.session_state['final_script_text'],
+                file_name=f"{p.get('viral_title', 'script').replace(' ', '_').lower()}.txt",
+                mime="text/plain"
+            )
+            
+            st.success("🎉 **Step 3 Complete!** Once you are happy with the text above, click the **'4. Generate Voiceover'** tab.")
 
-                # Act 2
-                with st.expander("🎭 ACT 2", expanded=False):
-                    text = full_script.get('act2', 'No Act 2 content')
-                    st.write(text)
-                    full_script_text += f"{text}\n\n"
-                
-                # Act 3
-                with st.expander("🎭 ACT 3", expanded=False):
-                    text = full_script.get('act3', 'No Act 3 content')
-                    st.write(text)
-                    full_script_text += f"{text}\n\n"
-                
-                # Outro
-                with st.expander("🎬 OUTRO", expanded=False):
-                    text = full_script.get('outro', 'No outro available')
-                    st.write(text)
-                    full_script_text += f"{text}\n\n"
-                
-                # Download full script as text
-                st.download_button(
-                    label="📥 Download Complete Script",
-                    data=full_script_text,
-                    file_name=f"{p.get('viral_title', 'script').replace(' ', '_').lower()}.txt",
-                    mime="text/plain"
-                )
-                
-                # --- AUDIO GENERATION SECTION ---
-                st.markdown("---")
-                st.subheader("🎙️ AI Voiceover Studio")
-                st.caption("Generate a professional narration using Edge-TTS (Neural Voice).")
-                
-                if st.button("🔊 Generate Audio for Script"):
-                    if not full_script_text.strip():
-                        st.error("Script is empty.")
-                    else:
-                        with st.spinner("Synthesizing audio (this may take 10-20 seconds)..."):
-                            # Get voice from sidebar selection
-                            selected_voice = voice_option[0] 
-                            audio_file_path = generate_audio_sync(full_script_text, selected_voice)
-                            
-                            if audio_file_path:
-                                st.audio(audio_file_path, format='audio/mp3')
-                                with open(audio_file_path, "rb") as file:
-                                    btn = st.download_button(
-                                        label="📥 Download Audio",
-                                        data=file,
-                                        file_name=f"{p.get('viral_title', 'audio').replace(' ', '_').lower()}.mp3",
-                                        mime="audio/mp3"
-                                    )
-                                st.success("Audio generated successfully! (Hosted by Microsoft Edge Servers)")
-                            else:
-                                st.error("Failed to generate audio. Please try again.")
+# --- TAB 4: GENERATE VOICEOVER ---
+with tab4:
+    st.subheader("Step 4: AI Voiceover Studio")
+    st.info("Turn your finalized script or a custom uploaded file into professional audio.")
 
-            else:
-                st.warning("Full script not generated. The model may need to be prompted differently.")
-            
-            st.markdown("---")
-            with st.expander("📜 Quick Script Outline", expanded=False):
-                for item in p.get('script_outline', []):
-                    st.write(f"• {item}")
-            
-            st.markdown("#### 🏷️ Metadata")
-            st.caption(p.get('seo_metadata', {}).get('description'))
-            st.write(f"**Tags:** {', '.join(p.get('seo_metadata', {}).get('tags', []))}")
+    source_mode = st.radio("Choose Text Source for Voiceover:", ["Use Generated Script (from Tab 3)", "Upload Custom Text File (.txt)"])
+    
+    text_to_synthesize = ""
+    
+    if source_mode == "Use Generated Script (from Tab 3)":
+        text_to_synthesize = st.session_state.get('final_script_text', '')
+        if not text_to_synthesize:
+            st.warning("⚠️ No generated script found. Please complete Steps 1-3 first, or select 'Upload Custom Text File'.")
+    else:
+        uploaded_file = st.file_uploader("Upload a .txt file", type=["txt"])
+        if uploaded_file is not None:
+            text_to_synthesize = uploaded_file.getvalue().decode("utf-8")
+            st.success("File uploaded successfully!")
+
+    st.markdown("---")
+    st.markdown("### Preview Text for Audio Generation")
+    
+    # We allow one last chance to edit before generating audio
+    final_audio_text = st.text_area("This exact text will be sent to the AI Voice:", value=text_to_synthesize, height=250)
+
+    if st.button("🔊 Generate Voiceover"):
+        if not final_audio_text.strip():
+            st.error("Text box is empty. Please provide text to generate audio.")
+        else:
+            with st.spinner(f"Synthesizing audio with {voice_option[1]} (this may take 10-20 seconds)..."):
+                selected_voice = voice_option[0] 
+                audio_file_path = generate_audio_sync(final_audio_text, selected_voice)
+                
+                if audio_file_path:
+                    st.success("✅ Audio generated successfully!")
+                    st.audio(audio_file_path, format='audio/mp3')
+                    
+                    with open(audio_file_path, "rb") as file:
+                        st.download_button(
+                            label="📥 Download Audio File (.mp3)",
+                            data=file,
+                            file_name="professional_voiceover.mp3",
+                            mime="audio/mp3"
+                        )
+                else:
+                    st.error("Failed to generate audio. Please check your internet connection and try again.")
 
 st.divider()
-st.caption("Script Architect Pro v2.2 | ✅ Gemini 2.5 Flash + Neural Voice")
+st.caption("Script Architect Pro v2.4 | ✅ Multi-Tab Studio + Custom Script Upload + Neural Voice")
